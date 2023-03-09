@@ -1,0 +1,14 @@
+# docshare
+
+介绍如何进行环境配置
+
+# steps
+
+* 工具
+   * visual studio code
+
+* 安装依赖
+   * 打开 VS code，在Extensions中分别搜索vim、MDPlant、Markdown PDF,进行安装
+   * 安装pip
+
+* 
