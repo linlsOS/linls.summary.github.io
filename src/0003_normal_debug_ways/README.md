@@ -1,6 +1,6 @@
-# README
+# normal debug way
 
-这个是文档模板
+常用的debug方法
 
 # docs
 

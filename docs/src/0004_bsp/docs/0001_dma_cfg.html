@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>lls</title>
+
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> 分析文档
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">dma cfg</a></li>
+<li><a class="reference internal" href="#i2c-dma">i2c dma</a></li>
+<li><a class="reference internal" href="#diff">diff</a></li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">分析文档</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs"> 
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.forward()">Forward</a></li>
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.back()">Go Back</a> | </li>
+<li style="float: right;margin-left: 10px;"><a href="/index.html">Home</a> | </li>
+
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dma-cfg">
+<h1>dma cfg<a class="headerlink" href="#dma-cfg" title="Permalink to this heading"></a></h1>
+<p>mtk i2c dma 配置</p>
+</section>
+<section id="i2c-dma">
+<h1>i2c dma<a class="headerlink" href="#i2c-dma" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p>当需要连续发送大量数据，考虑采用DMA进行数据传输，fifo最大才8 byte</p></li>
+<li><p>当在器件调试时，如果初始化过程中需要写入大量块数据，请确认是否开了DMA</p></li>
+</ul>
+</section>
+<section id="diff">
+<h1>diff<a class="headerlink" href="#diff" title="Permalink to this heading"></a></h1>
+<div class="highlight-diff notranslate"><div class="highlight"><pre><span></span><span class="gh">diff --git a/mediatek/proprietary/tinysys/freertos/source/drivers/CM4_A/mt6765/i2c/src/i2cchre-plat.c b/mediatek/proprietary/tinysys/freertos/source/drivers/CM4_A/mt</span>
+<span class="gd">--- a/mediatek/proprietary/tinysys/freertos/source/drivers/CM4_A/mt6765/i2c/src/i2cchre-plat.c</span>
+<span class="gi">+++ b/mediatek/proprietary/tinysys/freertos/source/drivers/CM4_A/mt6765/i2c/src/i2cchre-plat.c</span>
+<span class="gu">@@ -54,8 +54,8 @@</span>
+<span class="w"> </span>#include &lt;plat/inc/rtc.h&gt;
+<span class="w"> </span>#include &lt;wakelock.h&gt;
+
+<span class="gd">-#define I2C_MAX_QUEUE_DEPTH     24</span>
+<span class="gd">-#define I2C_MAX_TXBUF_SIZE      8</span>
+<span class="gi">+#define I2C_MAX_QUEUE_DEPTH     32</span>
+<span class="gi">+#define I2C_MAX_TXBUF_SIZE      128</span>
+<span class="w"> </span>#define I2C_RECORD_LEN          2
+
+<span class="w"> </span>static struct i2c_info_buf rec_info_buf;
+
+<span class="w"> </span>diff --git a/mediatek/proprietary/tinysys/freertos/source/project/CM4_A/mt6765/platform/platform.mk b/mediatek/proprietary/tinysys/freertos/source/project/CM4_A/mt67
+<span class="gd">--- a/mediatek/proprietary/tinysys/freertos/source/project/CM4_A/mt6765/platform/platform.mk</span>
+<span class="gi">+++ b/mediatek/proprietary/tinysys/freertos/source/project/CM4_A/mt6765/platform/platform.mk</span>
+<span class="gu">@@ -83,8 +83,8 @@ CFG_FEATURE03_SUPPORT = no</span>
+<span class="w"> </span>CFG_TEST_PROGRAM_SUPPORT = no
+<span class="w"> </span>CFG_CACHE_2WAY_SUPPORT = no
+<span class="w"> </span>CFG_CM4_MODIFICATION = yes
+<span class="gd">-CFG_I2C_CH0_DMA_SUPPORT = no</span>
+<span class="gd">-CFG_I2C_CH1_DMA_SUPPORT = no</span>
+<span class="gi">+CFG_I2C_CH0_DMA_SUPPORT = yes</span>
+<span class="gi">+CFG_I2C_CH1_DMA_SUPPORT = yes</span>
+
+<span class="w"> </span>CFG_CNN_TO_SCP_BUF_SIZE = 0x0
+<span class="w"> </span>CFG_SCP_TO_CNN_BUF_SIZE = 0x0
+</pre></div>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, lls.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
