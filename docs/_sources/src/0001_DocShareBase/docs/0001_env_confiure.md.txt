@@ -8,7 +8,7 @@
    * visual studio code
 
 * 安装依赖
-   * 打开 VS code，在Extensions中分别搜索vim、MDPlant、Markdown PDF,进行安装
+   * 打开 VS code，在Extensions中分别搜索vim、MDPlant、Markdown PDF,进行安装  
      ![0001_env_configure.png](images/0001_env_configure.png)
    * 配置shell，选择powershell
      ![0001_env_configure_sh.png](images/0001_env_configure_sh.png)
@@ -17,7 +17,7 @@
        ![0001_env_cfg_install_python.png](images/0001_env_cfg_install_python.png)
    * 配置sphinx-build路径为环境变量
      * 找到sphinx-build文件的路径，在环境变量中增加其路径
-       ![0001_env_cfg_install_python.png](images/0001_env_cfg_install_python.png)
+       ![0001_env_cfg_sphinx-build.png](images/0001_env_cfg_sphinx-build.png)
    * 安装sphinx-rtd-theme
      * 点击Terminal->new Terminal
      * pip3 install sphinx-rtd-theme==1.0.0

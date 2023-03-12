@@ -1,13 +1,11 @@
 # README
 
-如何通过VS及插件编写系统性总结文档
+这个是文档模板
 
 # docs
 
 NO.  |文件名称|摘要
 :---:|:--|:--
-0005 | [ubuntu_uninstall_sw](docs/0005_ubuntu_uninstall_sw.md) | ubuntu 卸载软件
-0004 | [ubuntu_install_sw](docs/0004_ubuntu_install_sw.md) | 一行摘要简介...
-0003 | [code_search_server](docs/0003_code_search_server.md) | 如何搭建代码搜索服务器
+0003 | [how_to_free_publish](docs/0003_how_to_free_publish.md) | 如何在公网也可以访问自己写的文档
 0002 | [howtowriteDoc](docs/0002_howtowriteDoc.md) | 介绍如何新建文档，及常用快捷键
 0001 | [env_confiure](docs/0001_env_confiure.md) | 介绍如何进行环境配置
