@@ -23,6 +23,8 @@ callstack.log("markdebug");
   * [Android 打印堆栈的几种方法](https://blog.csdn.net/deng0zhaotai/article/details/44957673)
 * 代码引用
 ```java
+import java.lang.Exception
+
 Exception e = new Exception("add exception");
 e.printStackTrace();
 ```
