@@ -41,9 +41,9 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <!-- Local TOC -->
               <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">Android CallStack</a></li>
-<li><a class="reference internal" href="#c">c++</a></li>
-<li><a class="reference internal" href="#java">java</a></li>
+<li><a class="reference internal" href="#">android bt structure</a></li>
+<li><a class="reference internal" href="#id1">参考文档</a></li>
+<li><a class="reference internal" href="#bt">bt 架构</a></li>
 </ul>
 </div>
         </div>
@@ -71,50 +71,38 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="android-callstack">
-<h1>Android CallStack<a class="headerlink" href="#android-callstack" title="Permalink to this heading"></a></h1>
-<p>Android backtrace</p>
+  <section id="android-bt-structure">
+<h1>android bt structure<a class="headerlink" href="#android-bt-structure" title="Permalink to this heading"></a></h1>
+<p>android bt 架构</p>
 </section>
-<section id="c">
-<h1>c++<a class="headerlink" href="#c" title="Permalink to this heading"></a></h1>
+<section id="id1">
+<h1>参考文档<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h1>
 <ul class="simple">
-<li><p>头文件</p></li>
-</ul>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1">#include &lt;utils/CallStack.h&gt;</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p>代码引用</p></li>
-</ul>
-<div class="highlight-c++ notranslate"><div class="highlight"><pre><span></span><span class="n">android</span><span class="o">::</span><span class="n">CallStack</span><span class="w"> </span><span class="n">callstack</span><span class="p">;</span>
-<span class="n">callstack</span><span class="p">.</span><span class="n">update</span><span class="p">();</span>
-<span class="n">callstack</span><span class="p">.</span><span class="n">log</span><span class="p">(</span><span class="s">&quot;markdebug&quot;</span><span class="p">);</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p>so 依赖</p>
-<ul>
-<li><p>依赖libutilscallstack</p></li>
-</ul>
-</li>
+<li><p><a class="reference external" href="https://blog.csdn.net/u012408797/article/details/109766608">Android Bluetooth架构</a></p></li>
+<li><p><a class="reference external" href="https://blog.csdn.net/zjli321/article/details/52402968">Android下bluedroid、bluetooth apk介绍</a></p></li>
 </ul>
 </section>
-<section id="java">
-<h1>java<a class="headerlink" href="#java" title="Permalink to this heading"></a></h1>
+<section id="bt">
+<h1>bt 架构<a class="headerlink" href="#bt" title="Permalink to this heading"></a></h1>
+<p>Android系统蓝牙的整体架构<br />
+<img alt="0001_bluetooth_structure.png" src="../../../_images/0001_bluetooth_structure.png" /></p>
+<p>Applications：Android蓝牙应用程序，就是使用蓝牙的API的程序；<br />
+Framework：提供给应用使用的API，我们平时使用的BluetoothAdapter，BluetoothDevice，BluetoothSocket等；<br />
+Bluetooth Service：即Bluetooth APP(Bluetooth.apk)这个应该也是属于java framework范畴，不过由于它比较特殊，所以独立出来，提供所有的上层服务以及与Bluedroid底层进行交互。其中btAdapter主要提供蓝牙的基本操作，比如enable, disable, discovery, pair, unpair, createRfcomm等，其他的就都是Profile的各自的Service了;<br />
+Bluedroid：蓝牙协议栈，提供所有蓝牙的实际操作，开关蓝牙，蓝牙的管理，搜索管理，链路管理，各种profile的实现，包括HCI，ACL，SCO，L2CAP，各种profile等</p>
+<p>整个系统的架构很简单，因为大多的事情都是在Bluedroid层里面做的，上层只管去Call和Callback就是了，这部分我们在后面分析代码做详细分析。</p>
 <ul class="simple">
-<li><p>参考文档</p>
-<ul>
-<li><p><a class="reference external" href="https://blog.csdn.net/deng0zhaotai/article/details/44957673">Android 打印堆栈的几种方法</a></p></li>
+<li><p>蓝牙的的入口主要有setting与systemui，这两个apk的蓝牙部分都是同framework进行交互</p></li>
+<li><p>Bluetooth framework层的作用只要是连接bluetooth service，为其它应用提供使用蓝牙的接口，起连接上下层的作用，没有太多的逻辑
+images/0001_bluetooth_structure_framework.png</p></li>
+<li><p>BlueDroid架构介绍<br />
+<img alt="0001_bluetooth_structure_BlueDroid.png" src="../../../_images/0001_bluetooth_structure_BlueDroid.png" /></p></li>
 </ul>
-</li>
-<li><p>代码引用</p></li>
-</ul>
-<div class="highlight-java notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">java.lang.Exception</span>
-
-<span class="n">Exception</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Exception</span><span class="p">(</span><span class="s">&quot;add exception&quot;</span><span class="p">);</span>
-<span class="n">e</span><span class="p">.</span><span class="na">printStackTrace</span><span class="p">();</span>
-</pre></div>
-</div>
+<p>Bluedroid: 蓝牙协议栈，提供所有蓝牙的实际操作，开关蓝牙，蓝牙的管理，搜索管理，链路管理，各种profile的实现，包括HCI，ACL，SCO，L2CAP，各种profile等；
+这里Bluedroid分为三部分：<br />
+BTIF(Bluetooth Interface）：提供所有Bluetooth.apk需要的API（使用HAL）<br />
+BTA(Bluetooth Application)：蓝牙应用，一般指蓝牙的Profile的Bluedroid实现。<br />
+Stack：实现所有蓝牙底层的操作，其中还要分为btm(Bluetooth manager),btu(Bluetooth Upper Layer)等。</p>
 </section>
 
 

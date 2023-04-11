@@ -1,6 +1,6 @@
-# android bluetooth structure
+# android bt 代码栈
 
-anddroid bluethooth structure
+ android bt 代码栈
 
 # 参考文档
 
@@ -9,7 +9,7 @@ anddroid bluethooth structure
 
 # 蓝牙的总体流程
 
-![0001_bluetooth_flow.png](images/0001_bluetooth_flow.png)
+![0002_bluetooth_flow.png](images/0002_bluetooth_flow.png)
 
 # enable bluetooth
 ```
@@ -170,6 +170,61 @@ anddroid bluethooth structure
 
 ```
 
+# 开始配对后，确认是否进行配对
+```
+* packages/apps/Settings/src/com/android/settings/bluetooth/BluetoothPairingController.java
+  └── private void onPair(String passkey)
+      ├── mDevice.setPin(passkey);
+      └── mDevice.setPairingConfirmation(true);
+          └── packages/modules/Bluetooth/framework/java/android/bluetooth/BluetoothDevice.java
+              ├── final IBluetooth service = getService();
+              └── service.setPairingConfirmation(this, confirm, mAttributionSource, recv);
+                  └── packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java
+                      └── public void setPairingConfirmation(BluetoothDevice device, boolean accept, AttributionSource source, SynchronousResultReceiver receiver) 
+                          └── receiver.send(setPairingConfirmation(device, accept, source));
+                              └── AdapterService service = getService();
+                                  └── service.sspReplyNative(getBytesFromAddress(device.getAddress()),AbstractionLayer.BT_SSP_VARIANT_PASSKEY_CONFIRMATION, accept,0);
+                                      └── packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp
+                                          └── int ret = sBluetoothInterface->ssp_reply((RawAddress*)addr, (bt_ssp_variant_t)type, accept, passkey);
+                                              └── packages/modules/Bluetooth/system/btif/src/bluetooth.cc
+                                                  └── do_in_main_thread(FROM_HERE, base::BindOnce(btif_dm_ssp_reply, *bd_addr, variant, accept))
+                                                      └── packages/modules/Bluetooth/system/btif/src/btif_dm.cc
+                                                          └── void btif_dm_ssp_reply(const RawAddress bd_addr, bt_ssp_variant_t variant, uint8_t accept) 
+```
+
+# 蓝牙状态变更上报
+
+这里以BondStateMachine为例进行代码跟踪，其他的回调也是类似
+```
+* packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java 
+  ├── classInitNative();
+  │   └── packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp
+  │       ├── method_stateChangeCallback = env->GetMethodID(jniCallbackClass, "stateChangeCallback", "(I)V");
+  │       ├── method_deviceFoundCallback = env->GetMethodID(jniCallbackClass, "deviceFoundCallback", "([B)V");
+  │       ├── method_pinRequestCallback = env->GetMethodID(jniCallbackClass, "pinRequestCallback", "([B[BIZ)V");
+  │       ├── method_sspRequestCallback = env->GetMethodID(jniCallbackClass, "sspRequestCallback", "([B[BIII)V");
+  │       └── method_bondStateChangeCallback = env->GetMethodID(jniCallbackClass, "bondStateChangeCallback", "(I[BII)V");
+  └── public void onCreate()
+      ├── mJniCallbacks = new JniCallbacks(this, mAdapterProperties);
+      └── initNative(mUserManager.isGuestUser(), isCommonCriteriaMode(), configCompareResult, getInitFlags(), isAtvDevice, getApplicationInfo().dataDir);
+          └── int ret = sBluetoothInterface->init(&sBluetoothCallbacks, isGuest == JNI_TRUE ? 1 : 0,isCommonCriteriaMode == JNI_TRUE ? 1 : 0, configCompareResult, flags,isAtvDevice == JNI_TRUE ? 1 : 0, user_data_directory);//这里将回调函数传入
+              └── static bt_callbacks_t sBluetoothCallbacks = {sizeof(sBluetoothCallbacks),adapter_state_change_callback,adapter_properties_callback,remote_device_properties_callback,device_found_callback,discovery_state_changed_callback,pin_request_callback,ssp_request_callback,bond_state_changed_callback,address_consolidate_callback,acl_state_changed_callback,callback_thread_event,dut_mode_recv_callback,le_test_mode_recv_callback,energy_info_recv_callback,link_quality_report_callback,generate_local_oob_data_callback,switch_buffer_size_callback,switch_codec_callback};
+                  └── static void bond_state_changed_callback(bt_status_t status, RawAddress* bd_addr, bt_bond_state_t state,int fail_reason) 
+                      └── sCallbackEnv->CallVoidMethod(sJniCallbacksObj, method_bondStateChangeCallback,(jint)status, addr.get(), (jint)state,(jint)fail_reason);
+                          └── packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/JniCallbacks.java
+                              └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason)
+                                  └── mBondStateMachine.bondStateChangeCallback(status, address, newState, hciReason);
+                                      └── packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/BondStateMachine.java
+                                          └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason) 
+                                              ├── Message msg = obtainMessage(BONDING_STATE_CHANGE);
+                                              └── sendMessage(msg);
+                                                  └── sendIntent(dev, newState, reason, false);
+                                                      └── packages/modules/Bluetooth/android/app/src/com/android/bluetooth/a2dp/A2dpService.java
+                                                          └── private class BondStateChangedReceiver extends BroadcastReceiver 
+                                                              └── bondStateChanged(device, state)
+                                                                  └── void bondStateChanged(BluetoothDevice device, int bondState)
+                                                                      └──  if (bondState != BluetoothDevice.BOND_NONE) return; //到这里最终好像也没处理什么
+```
 # 蓝牙配对状态改变
 
 在userdebug版本下可以看到日志，蓝牙配对过程中状态的切换
