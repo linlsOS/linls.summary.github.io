@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>lls</title>
+
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> 分析文档
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">bluetooth log analysis</a></li>
+<li><a class="reference internal" href="#id1">参考文档</a></li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">分析文档</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs"> 
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.forward()">Forward</a></li>
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.back()">Go Back</a> | </li>
+<li style="float: right;margin-left: 10px;"><a href="/index.html">Home</a> | </li>
+
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="bluetooth-log-analysis">
+<h1>bluetooth log analysis<a class="headerlink" href="#bluetooth-log-analysis" title="Permalink to this heading"></a></h1>
+<p>android 日志分析</p>
+</section>
+<section id="id1">
+<h1>参考文档<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p>过滤 BluetoothManagerService</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>//打开蓝牙，蓝牙状态变更OFF -&gt; BLE_TURNING_ON -&gt; BLE_ON -&gt; TURNING_ON -&gt; ON
+130|TB301XU:/ $ logcat -v threadtime |grep BluetoothManagerService                                        
+04-12 09:01:52.882  1268  5342 D BluetoothManagerService: enable(com.android.systemui):  mBluetooth =null mBinding = false mState = OFF
+04-12 09:01:52.883  1268  1368 D BluetoothManagerService: MESSAGE_ENABLE(0): mBluetooth = null
+04-12 09:01:52.883  1268  1368 D BluetoothManagerService: Persisting Bluetooth Setting: 1
+04-12 09:01:52.883  1268  5342 D BluetoothManagerService: enable returning
+04-12 09:01:52.883  1268  1368 D BluetoothManagerService: binding Bluetooth service
+04-12 09:01:53.152  1268  1268 D BluetoothManagerService: BluetoothServiceConnection: com.android.bluetooth.btservice.AdapterService
+04-12 09:01:53.153  1268  1368 D BluetoothManagerService: MESSAGE_BLUETOOTH_SERVICE_CONNECTED: 1
+04-12 09:01:53.159  1268  1368 D BluetoothManagerService: Broadcasting onBluetoothServiceUp() to 11 receivers.
+04-12 09:01:53.170  1268  1368 D BluetoothManagerService: MESSAGE_BLUETOOTH_STATE_CHANGE: OFF &gt; BLE_TURNING_ON
+04-12 09:01:53.170  1268  1368 D BluetoothManagerService: Sending BLE State Change: OFF &gt; BLE_TURNING_ON
+04-12 09:01:53.378  1268  1268 D BluetoothManagerService: Bluetooth Adapter name changed to Lenovo Tab M8 (4th Gen) 2023 by android
+04-12 09:01:53.379  1268  1268 D BluetoothManagerService: Stored Bluetooth name: Lenovo Tab M8 (4th Gen) 2023
+04-12 09:01:53.400  1268  1368 D BluetoothManagerService: MESSAGE_BLUETOOTH_STATE_CHANGE: BLE_TURNING_ON &gt; BLE_ON
+04-12 09:01:53.400  1268  1368 D BluetoothManagerService: Bluetooth is in LE only mode
+04-12 09:01:53.400  1268  1368 D BluetoothManagerService: Binding Bluetooth GATT service
+04-12 09:01:53.402  1268  1368 D BluetoothManagerService: Sending BLE State Change: BLE_TURNING_ON &gt; BLE_ON
+04-12 09:01:53.404  1268  1268 D BluetoothManagerService: BluetoothServiceConnection: com.android.bluetooth.gatt.GattService
+04-12 09:01:53.404  1268  1368 D BluetoothManagerService: MESSAGE_BLUETOOTH_SERVICE_CONNECTED: 2
+04-12 09:01:53.404  1268  1368 D BluetoothManagerService: continueFromBleOnState()
+04-12 09:01:53.407  1268  1368 D BluetoothManagerService: Persisting Bluetooth Setting: 1
+04-12 09:01:53.409  1268  1368 D BluetoothManagerService: MESSAGE_BLUETOOTH_STATE_CHANGE: BLE_ON &gt; TURNING_ON
+04-12 09:01:53.409  1268  1368 D BluetoothManagerService: Sending BLE State Change: BLE_ON &gt; TURNING_ON
+04-12 09:01:53.411  1268  1368 D BluetoothManagerService: Sending State Change: OFF &gt; TURNING_ON
+04-12 09:01:53.731  1268  1368 D BluetoothManagerService: MESSAGE_BLUETOOTH_STATE_CHANGE: TURNING_ON &gt; ON
+04-12 09:01:53.734  1268  1368 D BluetoothManagerService: Broadcasting onBluetoothStateChange(true) to 32 receivers.
+04-12 09:01:53.735  1268  1368 D BluetoothManagerService: Creating new ProfileServiceConnections object for profile: 1
+04-12 09:01:53.742  1268  1368 D BluetoothManagerService: send proxy for profile: 1
+04-12 09:01:53.754  1268  6085 D BluetoothManagerService: send proxy for profile: 1
+04-12 09:01:53.767  1268  1368 D BluetoothManagerService: send proxy for profile: 1
+04-12 09:01:53.768  1268  3001 D BluetoothManagerService: send proxy for profile: 1
+04-12 09:01:53.784  1268  1368 D BluetoothManagerService: Sending BLE State Change: TURNING_ON &gt; ON
+04-12 09:01:53.784  1268  2979 D BluetoothManagerService: send proxy for profile: 1
+04-12 09:01:53.785  1268  1368 D BluetoothManagerService: Sending State Change: TURNING_ON &gt; ON
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>过滤 BluetoothAdapter</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>// 打开蓝牙
+04-12 09:01:52.883  1694  1809 D framework_LocalBluetoothAdapter: setBluetoothEnabled success=true
+04-12 09:01:53.068  7292  7292 D BluetoothAdapterService: onCreate()
+04-12 09:01:53.128  7292  7292 I BluetoothAdapterService: Phone policy enabled
+04-12 09:01:53.144  7292  7292 D BluetoothAdapterService: setAdapterService() - trying to set service to com.android.bluetooth.btservice.AdapterService@14cdc4f
+04-12 09:01:53.152  7292  7292 D BluetoothAdapterService: onBind()
+04-12 09:01:53.160  2906  2934 D BluetoothAdapter: onBluetoothServiceUp: android.bluetooth.IBluetooth$Stub$Proxy@5723f77
+......
+04-12 09:01:53.162  7292  7308 D BluetoothAdapter: onBluetoothServiceUp: com.android.bluetooth.btservice.AdapterService$AdapterServiceBinder@2f8f596
+04-12 09:01:53.164  1874  2854 D BluetoothAdapter: onBluetoothServiceUp: android.bluetooth.IBluetooth$Stub$Proxy@8f442cc
+04-12 09:01:53.165  1670  2155 D BluetoothAdapter: onBluetoothServiceUp: android.bluetooth.IBluetooth$Stub$Proxy@64641a
+04-12 09:01:53.168  7292  7306 D BluetoothAdapterService: enable() - Enable called with quiet mode status =  false
+04-12 09:01:53.170  7292  7311 D BluetoothAdapterService: updateAdapterState() - Broadcasting state BLE_TURNING_ON to 1 receivers.
+04-12 09:01:53.173  1268  1268 D BluetoothAdapter: isLeEnabled(): BLE_TURNING_ON
+04-12 09:01:53.174  7292  7311 D BluetoothAdapterService: bleOnProcessStart()
+04-12 09:01:53.180  7292  7311 D BluetoothAdapterService: bleOnProcessStart() - Make Bond State Machine
+04-12 09:01:53.399  7292  7311 D BluetoothAdapterService: updateAdapterState() - Broadcasting state BLE_ON to 1 receivers.
+04-12 09:01:53.403  1268  1268 D BluetoothAdapter: isLeEnabled(): BLE_ON
+04-12 09:01:53.408  7292  7311 D BluetoothAdapterService: updateAdapterState() - Broadcasting state TURNING_ON to 1 receivers.
+04-12 09:01:53.409  7292  7311 D BluetoothAdapterService: startCoreServices()
+04-12 09:01:53.413  1268  1268 D BluetoothAdapter: isLeEnabled(): TURNING_ON
+04-12 09:01:53.418  1268  1268 D BluetoothAdapter: isLeEnabled(): TURNING_ON
+04-12 09:01:53.722  7292  7292 D BluetoothAdapterService: updateUuids() - Updating UUIDs for bonded devices
+04-12 09:01:53.725  7292  7292 I BluetoothAdapterService: initProfileServices: Initializing all bluetooth profile services
+04-12 09:01:53.731  7292  7311 D BluetoothAdapterService: updateAdapterState() - Broadcasting state ON to 1 receivers.
+04-12 09:01:53.732  7292  7311 D BluetoothAdapterService: Bluetooth ON,call initNative
+04-12 09:01:53.732  7292  7311 D BluetoothAdapterService: Bluetooth ON,call initNative
+04-12 09:01:53.767  1268  1268 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:01:53.785  1268  1268 D BluetoothAdapter: isLeEnabled(): ON
+04-12 09:01:53.788  1268  1268 D BluetoothAdapter: isLeEnabled(): ON
+04-12 09:01:53.791  1268  1401 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+04-12 09:01:53.793  1268  1268 V NearbyService: Initiating BluetoothAdapter when Bluetooth is turned on.
+04-12 09:01:53.800  7292  7292 D BluetoothAdapterService: isQuietModeEnabled() - Enabled = false
+04-12 09:01:53.809  7292  7292 D BluetoothAdapter: listenUsingInsecureL2capOn: port=4131
+04-12 09:01:53.814  1874  5201 D BluetoothAdapter: isLeEnabled(): ON
+04-12 09:01:54.007  1874  6012 I Nearby  : [MBleClient] Start ble scanning from NearbyDirect:BluetoothAdapterWrapper, context tag = nearby_messages [CONTEXT service_id=49 ]
+04-12 09:01:54.008  1874  6012 D BluetoothAdapter: isLeEnabled(): ON
+04-12 09:02:00.014  1874  6012 I Nearby  : [MBleClient] Start ble scanning from NearbyDirect:BluetoothAdapterWrapper, context tag = nearby_messages [CONTEXT service_id=49 ]
+04-12 09:02:00.016  1874  6012 D BluetoothAdapter: isLeEnabled(): ON
+04-12 09:02:00.043  1874  6012 D BluetoothAdapter: isLeEnabled(): ON
+04-12 09:02:19.378  6063  6063 D BluetoothAdapter: enable(): BT already enabled!
+04-12 09:02:19.394  7292  7364 D BluetoothAdapterService: startDiscovery
+04-12 09:02:19.784  6063  6063 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:02:19.788  6063  6063 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+......
+04-12 09:02:31.016  7292  7305 D BluetoothAdapterService: Cannot start RFCOMM listener: UUID c26cf572-3369-4cf2-b5cc-d2cd130f5b2c already in use.
+04-12 09:02:49.406  7292  7305 D BluetoothAdapterService: startDiscovery
+04-12 09:02:49.779  6063  6063 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:02:49.803  6063  6063 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+......
+//开始连接设备
+04-12 09:02:54.713  7292  7305 D BluetoothAdapterService: cancelDiscovery
+04-12 09:02:54.743  7292  7332 D BluetoothAdapterService: checkUpdateLeAudioAdressIfNeed index = -1
+04-12 09:02:54.744  7292  7332 D BluetoothAdapterService: checkUpdateLeAudioAdressIfNeed not find dumo device,return
+04-12 09:02:54.750  1694  1809 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:02:54.756  1694  1809 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+04-12 09:02:56.339  7292  7305 D BluetoothAdapterService: Cannot start RFCOMM listener: UUID c26cf572-3369-4cf2-b5cc-d2cd130f5b2c already in use.
+04-12 09:02:58.458  7292  7332 D BluetoothAdapterService: checkUpdateLeAudioAdressIfNeed index = -1
+04-12 09:02:58.459  7292  7332 D BluetoothAdapterService: checkUpdateLeAudioAdressIfNeed not find dumo device,return
+04-12 09:02:58.543  7292  7308 I BluetoothAdapterService: connectEnabledProfiles: Connecting Hid Host Profile
+04-12 09:02:58.556  1694  1809 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:02:58.565  7292  7308 I BluetoothAdapterService: connectEnabledProfiles: Connecting Hid Host Profile
+04-12 09:02:58.567  1694  1809 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+04-12 09:02:58.599  6063  6063 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:02:58.601  6063  6063 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+04-12 09:02:58.755  1694  1809 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:02:58.756  7292  7292 D BluetoothAdapterService: enable() - Enable called with quiet mode status =  false
+04-12 09:02:58.758  1694  1809 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+04-12 09:02:59.125  6063  6063 D BluetoothAdapter: getActiveDevices(profile= A2DP)
+04-12 09:02:59.127  6063  6063 D BluetoothAdapter: getActiveDevices(profile= HEADSET)
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>过滤 BluetoothBondStateMachine
+userdebug版本可以在蓝牙打开时设置“adb shell setprop persist.vendor.bluetooth.hostloglevel sqc”，
+可以获取连接中状态变更的较多的日志。如下是打开蓝牙、设备连接、设备端开连接过程状态机变更</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">46</span><span class="p">:</span><span class="mf">31.298</span>  <span class="mi">6978</span>  <span class="mi">6996</span> <span class="n">D</span> <span class="n">BluetoothBondStateMachine</span><span class="p">:</span> <span class="n">make</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">46</span><span class="p">:</span><span class="mf">31.300</span>  <span class="mi">6978</span>  <span class="mi">7017</span> <span class="n">I</span> <span class="n">BluetoothBondStateMachine</span><span class="p">:</span> <span class="n">StableState</span><span class="p">():</span> <span class="n">Entering</span> <span class="n">Off</span> <span class="n">State</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">46</span><span class="p">:</span><span class="mf">57.770</span>  <span class="mi">6978</span>  <span class="mi">7017</span> <span class="n">I</span> <span class="n">BluetoothBondStateMachine</span><span class="p">:</span> <span class="n">Entering</span> <span class="n">PendingCommandState</span> <span class="n">State</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">47</span><span class="p">:</span><span class="mf">01.253</span>  <span class="mi">6978</span>  <span class="mi">7017</span> <span class="n">I</span> <span class="n">BluetoothBondStateMachine</span><span class="p">:</span> <span class="n">StableState</span><span class="p">():</span> <span class="n">Entering</span> <span class="n">Off</span> <span class="n">State</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>过滤BluetoothEventManager,获取搜索到的设备与连接状态改变的设备</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">44</span><span class="p">:</span><span class="mf">18.980</span>  <span class="mi">6063</span>  <span class="mi">6063</span> <span class="n">D</span> <span class="n">BluetoothEventManager</span><span class="p">:</span> <span class="n">DeviceFoundHandler</span> <span class="n">created</span> <span class="n">new</span> <span class="n">CachedBluetoothDevice</span> <span class="n">XX</span><span class="p">:</span><span class="n">XX</span><span class="p">:</span><span class="n">XX</span><span class="p">:</span><span class="n">CC</span><span class="p">:</span><span class="n">C4</span><span class="p">:</span><span class="mi">2</span><span class="n">C</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">44</span><span class="p">:</span><span class="mf">22.294</span>  <span class="mi">1694</span>  <span class="mi">1809</span> <span class="n">D</span> <span class="n">BluetoothEventManager</span><span class="p">:</span> <span class="n">callerPackageName</span> <span class="o">=</span> <span class="n">com</span><span class="o">.</span><span class="n">android</span><span class="o">.</span><span class="n">systemui</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">44</span><span class="p">:</span><span class="mf">22.295</span>  <span class="mi">1694</span>  <span class="mi">1809</span> <span class="n">W</span> <span class="n">BluetoothEventManager</span><span class="p">:</span> <span class="n">Got</span> <span class="n">bonding</span> <span class="n">state</span> <span class="n">changed</span> <span class="k">for</span> <span class="n">DC</span><span class="p">:</span><span class="mi">2</span><span class="n">C</span><span class="p">:</span><span class="mi">26</span><span class="p">:</span><span class="n">EA</span><span class="p">:</span><span class="n">AF</span><span class="p">:</span><span class="mi">78</span><span class="p">,</span> <span class="n">but</span> <span class="n">we</span> <span class="n">have</span> <span class="n">no</span> <span class="n">record</span> <span class="n">of</span> <span class="n">that</span> <span class="n">device</span><span class="o">.</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>过滤bt_btif_dm</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">24</span><span class="p">:</span><span class="mf">52.466</span>  <span class="mi">8203</span>  <span class="mi">8253</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_cancel_discovery</span><span class="p">:</span> <span class="n">Cancel</span> <span class="n">search</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">24</span><span class="p">:</span><span class="mf">53.070</span>  <span class="mi">8203</span>  <span class="mi">8227</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">BTIF_dm_disable</span><span class="p">:</span> <span class="n">Stack</span> <span class="n">device</span> <span class="n">manager</span> <span class="n">shutdown</span> <span class="n">finished</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">24</span><span class="p">:</span><span class="mf">55.036</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">BTIF_dm_enable</span><span class="p">:</span> <span class="n">BTIF_dm_enable</span> <span class="n">BLE</span> <span class="n">Privacy</span><span class="p">:</span> <span class="mi">1</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">03.867</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00000540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">03.868</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00000540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">03.868</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span> <span class="n">result</span> <span class="mi">0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">03.869</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00000540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">03.869</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">bond_state_changed</span><span class="p">:</span> <span class="n">Bond</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">to</span> <span class="n">state</span><span class="o">=</span><span class="mi">0</span> <span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">none</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="n">bonding</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span><span class="n">bonded</span><span class="p">],</span> <span class="n">prev_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sdp_attempts</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">12.707</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span> <span class="n">EIR</span> <span class="n">UUIDS</span><span class="p">:</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">12.707</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">0000110</span><span class="n">a</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">12.707</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">0000110</span><span class="n">c</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">12.707</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mf">0000110e-0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">12.707</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">00001200</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">13.172</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span> <span class="n">EIR</span> <span class="n">UUIDS</span><span class="p">:</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">13.172</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">0000</span><span class="n">fdaa</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">17.476</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span> <span class="n">EIR</span> <span class="n">UUIDS</span><span class="p">:</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">17.476</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mf">0000110e-0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">17.476</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">0000110</span><span class="n">c</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">17.476</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">0000110</span><span class="n">a</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">17.476</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">0000110</span><span class="n">b</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">17.476</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">00001112</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">17.476</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_devices_evt</span><span class="p">:</span>         <span class="mi">00001108</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">22.694</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_cancel_discovery</span><span class="p">:</span> <span class="n">Cancel</span> <span class="n">search</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">22.706</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_cancel_discovery</span><span class="p">:</span> <span class="n">Cancel</span> <span class="n">search</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">22.708</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">22.708</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">22.708</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+<span class="o">//</span> <span class="n">蓝牙开始配对</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">22.708</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">bond_state_changed</span><span class="p">:</span> <span class="n">Bond</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">to</span> <span class="n">state</span><span class="o">=</span><span class="mi">1</span> <span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">none</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="n">bonding</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span><span class="n">bonded</span><span class="p">],</span> <span class="n">prev_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sdp_attempts</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">25.100</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_update_remote_properties</span><span class="p">:</span> <span class="k">class</span> <span class="nc">of</span> <span class="n">device</span> <span class="p">(</span><span class="n">cod</span><span class="p">)</span> <span class="ow">is</span> <span class="mh">0x002540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">25.100</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.327</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_update_remote_version_property</span><span class="p">:</span> <span class="n">Remote</span> <span class="n">version</span> <span class="n">info</span> <span class="n">valid</span><span class="p">:</span><span class="n">true</span> <span class="p">[</span><span class="n">xx</span><span class="p">:</span><span class="n">xx</span><span class="p">:</span><span class="n">xx</span><span class="p">:</span><span class="n">xx</span><span class="p">:</span><span class="n">af</span><span class="p">:</span><span class="mi">78</span><span class="p">]:</span> <span class="mi">5</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="mi">2211</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.328</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_auth_cmpl_evt</span><span class="p">:</span> <span class="n">Is</span> <span class="n">LE</span> <span class="n">actived</span> <span class="mi">0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.328</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_cancel_discovery</span><span class="p">:</span> <span class="n">Cancel</span> <span class="n">search</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.328</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+<span class="o">//</span> <span class="n">蓝牙配对完成</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.328</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">bond_state_changed</span><span class="p">:</span> <span class="n">Bond</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">to</span> <span class="n">state</span><span class="o">=</span><span class="mi">2</span> <span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">none</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="n">bonding</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span><span class="n">bonded</span><span class="p">],</span> <span class="n">prev_state</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">sdp_attempts</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">New</span> <span class="n">BLE</span> <span class="n">UUIDs</span><span class="p">:</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">index</span><span class="p">:</span><span class="mi">0</span> <span class="n">uuid</span><span class="p">:</span><span class="mi">00001000</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">index</span><span class="p">:</span><span class="mi">0</span> <span class="n">uuid</span><span class="p">:</span><span class="mi">00001124</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">index</span><span class="p">:</span><span class="mi">0</span> <span class="n">uuid</span><span class="p">:</span><span class="mi">00001200</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">No</span> <span class="n">well</span> <span class="n">known</span> <span class="n">BLE</span> <span class="n">services</span> <span class="n">discovered</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">New</span> <span class="n">UUIDs</span><span class="p">:</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">index</span><span class="p">:</span><span class="mi">0</span> <span class="n">uuid</span><span class="p">:</span><span class="mi">00001124</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">index</span><span class="p">:</span><span class="mi">1</span> <span class="n">uuid</span><span class="p">:</span><span class="mi">00000000</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">index</span><span class="p">:</span><span class="mi">2</span> <span class="n">uuid</span><span class="p">:</span><span class="mi">00000000</span><span class="o">-</span><span class="mi">0000</span><span class="o">-</span><span class="mi">1000</span><span class="o">-</span><span class="mi">8000</span><span class="o">-</span><span class="mi">00805</span><span class="n">f9b34fb</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">btif_dm_search_services_evt</span><span class="p">:</span> <span class="n">SDP</span> <span class="n">search</span> <span class="n">done</span> <span class="k">for</span> <span class="n">dc</span><span class="p">:</span><span class="mi">2</span><span class="n">c</span><span class="p">:</span><span class="mi">26</span><span class="p">:</span><span class="n">ea</span><span class="p">:</span><span class="n">af</span><span class="p">:</span><span class="mi">78</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span> <span class="n">result</span> <span class="mi">0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.604</span>  <span class="mi">8356</span>  <span class="mi">8405</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span><span class="p">:</span> <span class="n">check_cod_leaudio_device</span> <span class="n">result</span> <span class="mi">0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mf">26.927</span>  <span class="mi">8356</span>  <span class="mi">8385</span> <span class="n">I</span> <span class="n">bt_btif_dm</span><span class="p">:</span> <span class="n">get_cod</span><span class="p">:</span> <span class="n">get_cod</span> <span class="n">remote_cod</span> <span class="o">=</span> <span class="mh">0x00002540</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>过滤bt_stack_manager</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>130|TB301XU:/ $ logcat -v threadtime |grep bt_stack_manager 
+// 关闭蓝牙                                                                                          
+04-12 09:38:41.835  8356  8380 I bt_stack_manager: event_shut_down_stack: event_shut_down_stack is bringing down the stack
+04-12 09:38:42.055  8356  8380 I bt_stack_manager: event_shut_down_stack: event_shut_down_stack finished
+04-12 09:38:42.088  8356  8380 I bt_stack_manager: event_clean_up_stack: event_clean_up_stack is cleaning up the stack
+04-12 09:38:42.090  8356  8380 I bt_stack_manager: event_clean_up_stack: event_clean_up_stack finished
+04-12 09:38:42.091  8356  8380 I bt_stack: [INFO:message_loop_thread.cc(267)] Run: message loop finished for thread bt_stack_manager_thread
+04-12 09:38:47.944  8926  8949 I droid.bluetooth: [0412/093847.944012:INFO:message_loop_thread.cc(234)] Run: message loop starting for thread bt_stack_manager_thread
+//打开蓝牙
+04-12 09:38:47.944  8926  8949 I bt_stack_manager: event_init_stack: is initializing the stack
+04-12 09:38:47.949  8926  8949 I bt_stack_manager: event_init_stack: event_init_stack finished
+04-12 09:38:48.052  8926  8949 I bt_stack_manager: event_start_up_stack: event_start_up_stack is bringing up the stack
+04-12 09:38:48.163  8926  8949 I bt_stack_manager: event_start_up_stack: event_start_up_stack finished
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>过滤A2dpService</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">//</span><span class="n">关闭蓝牙</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">53</span><span class="p">:</span><span class="mf">58.916</span>  <span class="mi">8926</span>  <span class="mi">8926</span> <span class="n">I</span> <span class="n">A2dpService</span><span class="p">:</span> <span class="n">stop</span><span class="p">()</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">53</span><span class="p">:</span><span class="mf">58.971</span>  <span class="mi">8926</span>  <span class="mi">8926</span> <span class="n">W</span> <span class="n">A2dpService</span><span class="p">:</span> <span class="n">getA2dpService</span><span class="p">():</span> <span class="n">service</span> <span class="ow">is</span> <span class="n">null</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">53</span><span class="p">:</span><span class="mf">59.189</span>  <span class="mi">8926</span>  <span class="mi">8926</span> <span class="n">I</span> <span class="n">A2dpService</span><span class="p">:</span> <span class="n">cleanup</span><span class="p">()</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">53</span><span class="p">:</span><span class="mf">59.219</span>  <span class="mi">8926</span>  <span class="mi">8958</span> <span class="n">W</span> <span class="n">A2dpService</span><span class="p">:</span> <span class="n">getA2dpService</span><span class="p">():</span> <span class="n">service</span> <span class="ow">is</span> <span class="n">null</span>
+<span class="o">//</span><span class="n">打开蓝牙</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">07.996</span>  <span class="mi">9190</span>  <span class="mi">9190</span> <span class="n">I</span> <span class="n">AdapterServiceConfig</span><span class="p">:</span> <span class="n">init</span><span class="p">:</span> <span class="n">profile</span><span class="o">=</span><span class="n">A2dpService</span><span class="p">,</span> <span class="n">enabled</span><span class="o">=</span><span class="n">true</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">08.394</span>  <span class="mi">9190</span>  <span class="mi">9190</span> <span class="n">I</span> <span class="n">A2dpService</span><span class="p">:</span> <span class="n">create</span><span class="p">()</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">08.400</span>  <span class="mi">9190</span>  <span class="mi">9190</span> <span class="n">I</span> <span class="n">A2dpService</span><span class="p">:</span> <span class="n">start</span><span class="p">()</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">08.401</span>  <span class="mi">9190</span>  <span class="mi">9190</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">classInitNative</span><span class="p">:</span> <span class="n">succeeds</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">08.402</span>  <span class="mi">9190</span>  <span class="mi">9190</span> <span class="n">I</span> <span class="n">A2dpService</span><span class="p">:</span> <span class="n">Max</span> <span class="n">connected</span> <span class="n">audio</span> <span class="n">devices</span> <span class="nb">set</span> <span class="n">to</span> <span class="mi">5</span>
+<span class="o">//</span><span class="n">设备开始连接</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">53.446</span>  <span class="mi">9190</span>  <span class="mi">9242</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">connectA2dpNative</span><span class="p">:</span> <span class="n">sBluetoothA2dpInterface</span><span class="p">:</span> <span class="mh">0x6d266c46b0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">53.626</span>  <span class="mi">9190</span>  <span class="mi">9218</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">bta2dp_mandatory_codec_preferred_callback</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">53.626</span>  <span class="mi">9190</span>  <span class="mi">9218</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">bta2dp_connection_state_callback</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">53.829</span>  <span class="mi">9190</span>  <span class="mi">9218</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">bta2dp_audio_config_callback</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">53.866</span>  <span class="mi">9190</span>  <span class="mi">9218</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">bta2dp_connection_state_callback</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">53.893</span>  <span class="mi">9190</span>  <span class="mi">9222</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">setActiveDeviceNative</span><span class="p">:</span> <span class="n">sBluetoothA2dpInterface</span><span class="p">:</span> <span class="mh">0x6d266c46b0</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">54</span><span class="p">:</span><span class="mf">53.904</span>  <span class="mi">9190</span>  <span class="mi">9218</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">bta2dp_audio_config_callback</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">55</span><span class="p">:</span><span class="mf">06.203</span>  <span class="mi">9190</span>  <span class="mi">9218</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">bta2dp_connection_state_callback</span>
+<span class="mi">04</span><span class="o">-</span><span class="mi">12</span> <span class="mi">09</span><span class="p">:</span><span class="mi">55</span><span class="p">:</span><span class="mf">06.777</span>  <span class="mi">9190</span>  <span class="mi">9222</span> <span class="n">I</span> <span class="n">BluetoothA2dpServiceJni</span><span class="p">:</span> <span class="n">setActiveDeviceNative</span><span class="p">:</span> <span class="n">sBluetoothA2dpInterface</span><span class="p">:</span> <span class="mh">0x6d266c46b0</span>
+
+</pre></div>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, lls.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
