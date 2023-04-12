@@ -6,7 +6,6 @@ android 日志分析
 
 * 过滤 BluetoothManagerService  
 
-
 ```
 //打开蓝牙，蓝牙状态变更OFF -> BLE_TURNING_ON -> BLE_ON -> TURNING_ON -> ON
 130|TB301XU:/ $ logcat -v threadtime |grep BluetoothManagerService                                        
