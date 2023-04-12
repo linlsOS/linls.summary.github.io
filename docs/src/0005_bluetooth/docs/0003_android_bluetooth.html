@@ -1,19 +1,101 @@
-# android bt 代码栈
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
- android bt 代码栈
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>lls</title>
 
-# 参考文档
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
 
-* [Android 蓝牙启动流程(以及设置蓝牙为作为sink模式 & 接收端模式)](https://blog.csdn.net/ChaoLi_Chen/article/details/108285847)
-* [system/bt目录内容解析](https://blog.csdn.net/weixin_40537714/article/details/121861858)
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> 分析文档
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">android bt 代码栈</a></li>
+<li><a class="reference internal" href="#id1">参考文档</a></li>
+<li><a class="reference internal" href="#id2">蓝牙的总体流程</a></li>
+<li><a class="reference internal" href="#enable-bluetooth">enable bluetooth</a></li>
+<li><a class="reference internal" href="#id3">蓝牙扫描</a></li>
+<li><a class="reference internal" href="#app">app 获取搜索到的设备</a></li>
+<li><a class="reference internal" href="#id4">蓝牙配对</a></li>
+<li><a class="reference internal" href="#id5">开始配对后，确认是否进行配对</a></li>
+<li><a class="reference internal" href="#id6">蓝牙状态变更上报</a></li>
+<li><a class="reference internal" href="#id7">蓝牙配对状态改变</a></li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
 
-# 蓝牙的总体流程
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">分析文档</a>
+      </nav>
 
-![0002_bluetooth_flow.png](images/0002_bluetooth_flow.png)
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs"> 
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.forward()">Forward</a></li>
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.back()">Go Back</a> | </li>
+<li style="float: right;margin-left: 10px;"><a href="/index.html">Home</a> | </li>
 
-# enable bluetooth
-```
-* packages/modules/Bluetooth/framework/java/android/bluetooth/BluetoothAdapter.java 
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="android-bt">
+<h1>android bt 代码栈<a class="headerlink" href="#android-bt" title="Permalink to this heading"></a></h1>
+<p>android bt 代码栈</p>
+</section>
+<section id="id1">
+<h1>参考文档<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p><a class="reference external" href="https://blog.csdn.net/ChaoLi_Chen/article/details/108285847">Android 蓝牙启动流程(以及设置蓝牙为作为sink模式 &amp; 接收端模式)</a></p></li>
+<li><p><a class="reference external" href="https://blog.csdn.net/weixin_40537714/article/details/121861858">system/bt目录内容解析</a></p></li>
+</ul>
+</section>
+<section id="id2">
+<h1>蓝牙的总体流程<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h1>
+<p><img alt="0003_bluetooth_flow.png" src="../../../_images/0003_bluetooth_flow.png" /></p>
+</section>
+<section id="enable-bluetooth">
+<h1>enable bluetooth<a class="headerlink" href="#enable-bluetooth" title="Permalink to this heading"></a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* packages/modules/Bluetooth/framework/java/android/bluetooth/BluetoothAdapter.java 
   └── public boolean enable()
       └── return mManagerService.enable(mAttributionSource);
           └── packages/modules/Bluetooth/service/java/com/android/server/bluetooth/BluetoothManagerService.java
@@ -50,9 +132,9 @@
                       │                                                                           └── processProfileServiceStateChanged((ProfileService) msg.obj, msg.arg1);
                       │                                                                               └── enableNative();
                       │                                                                                   └── packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp 
-                      │                                                                                       └── int ret = sBluetoothInterface->enable();
+                      │                                                                                       └── int ret = sBluetoothInterface-&gt;enable();
                       │                                                                                           └── packages/modules/Bluetooth/system/btif/src/bluetooth.cc
-                      │                                                                                               └── stack_manager_get_interface()->start_up_stack_async();
+                      │                                                                                               └── stack_manager_get_interface()-&gt;start_up_stack_async();
                       │                                                                                                   └── packages/modules/Bluetooth/system/btif/src/stack_manager.cc
                       │                                                                                                       └── management_thread.DoInThread(FROM_HERE, base::Bind(event_start_up_stack, nullptr)); 
                       │                                                                                                           └── static void event_start_up_stack(UNUSED_ATTR void* context)
@@ -61,26 +143,26 @@
                       │                                                                                                               │       ├── btif_init_bluetooth();
                       │                                                                                                               │       └── bte_main_init();
                       │                                                                                                               │           ├── hci = bluetooth::shim::hci_layer_get_interface()
-                      │                                                                                                               │           └── hci->set_data_cb(base::Bind(&post_to_main_message_loop));
+                      │                                                                                                               │           └── hci-&gt;set_data_cb(base::Bind(&amp;post_to_main_message_loop));
                       │                                                                                                               ├── module_start_up(get_local_module(BTIF_CONFIG_MODULE));
                       │                                                                                                               ├── BTA_dm_init()  //搜索事件回调
-                      │                                                                                                               │   └── bta_sys_register(BTA_ID_DM_SEARCH, &bta_dm_search_reg);
+                      │                                                                                                               │   └── bta_sys_register(BTA_ID_DM_SEARCH, &amp;bta_dm_search_reg);
                       │                                                                                                               │       └── static const tBTA_SYS_REG bta_dm_search_reg = {bta_dm_search_sm_execute, bta_dm_search_sm_disable};
                       │                                                                                                               │           └── bool bta_dm_search_sm_execute(BT_HDR_RIGID* p_msg) 
                       │                                                                                                               │               └── void bta_dm_search_start(tBTA_DM_MSG* p_data) 
                       │                                                                                                               │                   └── result.status = BTM_StartInquiry(bta_dm_inq_results_cb, bta_dm_inq_cmpl_cb);
                       │                                                                                                               │                       └── static void bta_dm_inq_results_cb(tBTM_INQ_RESULTS* p_inq, const uint8_t* p_eir,uint16_t eir_len)
-                      │                                                                                                               │                           └── bta_dm_search_cb.p_search_cback(BTA_DM_INQ_RES_EVT, &result);
+                      │                                                                                                               │                           └── bta_dm_search_cb.p_search_cback(BTA_DM_INQ_RES_EVT, &amp;result);
                       │                                                                                                               ├── bta_dm_enable(bte_dm_evt);
                       │                                                                                                               └── BTA_dm_on_hw_on();
                       ├── Message enableDelayedMsg = mHandler.obtainMessage(MESSAGE_HANDLE_ENABLE_DELAYED);
                       └── mHandler.sendMessageDelayed(enableDelayedMsg, ENABLE_DISABLE_DELAY_MS);
-```
-
-# 蓝牙扫描
-
-```
-* packages/modules/Bluetooth/framework/java/android/bluetooth/BluetoothAdapter.java
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h1>蓝牙扫描<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* packages/modules/Bluetooth/framework/java/android/bluetooth/BluetoothAdapter.java
   └── public boolean startDiscovery()
       └── mService.startDiscovery(mAttributionSource, recv);
           └── public void startDiscovery(AttributionSource source, SynchronousResultReceiver receiver)  
@@ -89,7 +171,7 @@
                       └── return service.startDiscovery(attributionSource);
                           └── boolean startDiscovery(AttributionSource attributionSource) 
                               └── return startDiscoveryNative();
-                                  └── int ret = sBluetoothInterface->start_discovery();
+                                  └── int ret = sBluetoothInterface-&gt;start_discovery();
                                       └── do_in_main_thread(FROM_HERE, base::BindOnce(btif_dm_start_discovery));
                                           └── packages/modules/Bluetooth/system/btif/src/btif_dm.cc
                                               └── void btif_dm_start_discovery(void) 
@@ -100,23 +182,23 @@
                                                       └── static void btif_dm_search_devices_evt(tBTA_DM_SEARCH_EVT event, tBTA_DM_SEARCH* p_search_data)
                                                           └── invoke_device_found_cb(num_properties, properties);
                                                               └── void invoke_device_found_cb(int num_properties, bt_property_t* properties)  
-```
-
-# app 获取搜索到的设备
-
-```
-* packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java 
+</pre></div>
+</div>
+</section>
+<section id="app">
+<h1>app 获取搜索到的设备<a class="headerlink" href="#app" title="Permalink to this heading"></a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java 
   └── public void onCreate()
       └── initNative(mUserManager.isGuestUser(), isCommonCriteriaMode(), configCompareResult, getInitFlags(), isAtvDevice, getApplicationInfo().dataDir);
           └── packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp 
-              └── int ret = sBluetoothInterface->init(&sBluetoothCallbacks, isGuest == JNI_TRUE ? 1 : 0,isCommonCriteriaMode == JNI_TRUE ? 1 : 0, configCompareResult, flags, isAtvDevice == JNI_TRUE ? 1 : 0, user_data_directory);
+              └── int ret = sBluetoothInterface-&gt;init(&amp;sBluetoothCallbacks, isGuest == JNI_TRUE ? 1 : 0,isCommonCriteriaMode == JNI_TRUE ? 1 : 0, configCompareResult, flags, isAtvDevice == JNI_TRUE ? 1 : 0, user_data_directory);
                   ├── static int init(bt_callbacks_t* callbacks, bool start_restricted
                   │   └── set_hal_cbacks(callbacks);
                   │       └── void set_hal_cbacks(bt_callbacks_t* callbacks) { bt_hal_cbacks = callbacks; }
                   │           └── 
                   └── static bt_callbacks_t sBluetoothCallbacks = {sizeof(sBluetoothCallbacks),adapter_state_change_callback,adapter_properties_callback,remote_device_properties_callback,device_found_callback,discovery_state_changed_callback,pin_request_callback,ssp_request_callback,bond_state_changed_callback,address_consolidate_callback,acl_state_changed_callback,callback_thread_event,dut_mode_recv_callback,le_test_mode_recv_callback,energy_info_recv_callback,link_quality_report_callback,generate_local_oob_data_callback,switch_buffer_size_callback,switch_codec_callback};
-                      └── sCallbackEnv->CallVoidMethod(sJniCallbacksObj, method_deviceFoundCallback,addr.get());
-                          └── method_deviceFoundCallback = env->GetMethodID(jniCallbackClass, "deviceFoundCallback", "([B)V");
+                      └── sCallbackEnv-&gt;CallVoidMethod(sJniCallbacksObj, method_deviceFoundCallback,addr.get());
+                          └── method_deviceFoundCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;deviceFoundCallback&quot;, &quot;([B)V&quot;);
                               └── packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/JniCallbacks.java
                                   └── mRemoteDevices.deviceFoundCallback(address);
                                       └── packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/RemoteDevices.java 
@@ -124,12 +206,12 @@
                                               ├── Intent intent = new Intent(BluetoothDevice.ACTION_FOUND);
                                               └── sAdapterService.sendBroadcastMultiplePermissions
                                             
-```
-
-# 蓝牙配对
-
-```
-* frameworks/base/packages/SettingsLib/src/com/android/settingslib/bluetooth/CachedBluetoothDevice.java
+</pre></div>
+</div>
+</section>
+<section id="id4">
+<h1>蓝牙配对<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* frameworks/base/packages/SettingsLib/src/com/android/settingslib/bluetooth/CachedBluetoothDevice.java
   └── public boolean startPairing()  
       └── if (!mDevice.createBond())
           └── packages/modules/Bluetooth/framework/java/android/bluetooth/BluetoothDevice.java 
@@ -144,7 +226,7 @@
                   │                           └── result = createBond(dev, msg.arg1, p192Data, p256Data, false);
                   │                               └── result = mAdapterService.createBondNative(addr, transport);
                   │                                   └── packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp 
-                  │                                       └── int ret = sBluetoothInterface->create_bond((RawAddress*)addr, transport);
+                  │                                       └── int ret = sBluetoothInterface-&gt;create_bond((RawAddress*)addr, transport);
                   │                                           └── do_in_main_thread(FROM_HERE, base::BindOnce(btif_dm_create_bond, *bd_addr, transport));
                   │                                               └── void btif_dm_create_bond(const RawAddress bd_addr, int transport) 
                   │                                                   ├── btif_stats_add_bond_event(bd_addr, BTIF_DM_FUNC_CREATE_BOND,pairing_cb.state);
@@ -152,7 +234,7 @@
                   │                                                       └── static void btif_dm_cb_create_bond(const RawAddress bd_addr,tBT_TRANSPORT transport)
                   │                                                           └── bond_state_changed(BT_STATUS_SUCCESS, bd_addr, BT_BOND_STATE_BONDING);  ///这里进行蓝牙状态变化的上报
                   │                                                               ├── invoke_bond_state_changed_cb(status, bd_addr, state, pairing_cb.fail_reason);
-                  │                                                               │   └── HAL_CBACK(bt_hal_cbacks,bond_state_changed_cb, status,&bd_addr, state, fail_reason);
+                  │                                                               │   └── HAL_CBACK(bt_hal_cbacks,bond_state_changed_cb, status,&amp;bd_addr, state, fail_reason);
                   │                                                               │       └── typedef struct {... bond_state_changed_callback bond_state_changed_cb;...}
                   │                                                               │           └── static void bond_state_changed_callback(bt_status_t status, RawAddress* bd_addr,bt_bond_state_t state, int fail_reason)
                   │                                                               │               └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason) 
@@ -161,18 +243,19 @@
                   │                                                                   └── do_in_main_thread(FROM_HERE, base::Bind(bta_dm_bond, bd_addr, addr_type, transport, device_type));
                   │                                                                       ├── BTM_SecBond(bd_addr, addr_type, transport, device_type, 0, NULL);
                   │                                                                       │   └── btm_sec_bond_by_transport(bd_addr, addr_type, transport, pin_len, p_pin);
-                  │                                                                       │       ├── if (!controller_get_interface()->supports_simple_pairing()) 
+                  │                                                                       │       ├── if (!controller_get_interface()-&gt;supports_simple_pairing()) 
                   │                                                                       │       └── btsnd_hcic_write_pin_type(HCI_PIN_TYPE_FIXED);
-                  │                                                                       └── bta_dm_cb.p_sec_cback(BTA_DM_AUTH_CMPL_EVT, &sec_event);
+                  │                                                                       └── bta_dm_cb.p_sec_cback(BTA_DM_AUTH_CMPL_EVT, &amp;sec_event);
                   ├── mRemoteDevices.setBondingInitiatedLocally(Utils.getByteAddress(device));
                   ├── cancelDiscoveryNative();
                   └── mBondStateMachine.sendMessage(msg);
 
-```
-
-# 开始配对后，确认是否进行配对
-```
-* packages/apps/Settings/src/com/android/settings/bluetooth/BluetoothPairingController.java
+</pre></div>
+</div>
+</section>
+<section id="id5">
+<h1>开始配对后，确认是否进行配对<a class="headerlink" href="#id5" title="Permalink to this heading"></a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* packages/apps/Settings/src/com/android/settings/bluetooth/BluetoothPairingController.java
   └── private void onPair(String passkey)
       ├── mDevice.setPin(passkey);
       └── mDevice.setPairingConfirmation(true);
@@ -185,32 +268,32 @@
                               └── AdapterService service = getService();
                                   └── service.sspReplyNative(getBytesFromAddress(device.getAddress()),AbstractionLayer.BT_SSP_VARIANT_PASSKEY_CONFIRMATION, accept,0);
                                       └── packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp
-                                          └── int ret = sBluetoothInterface->ssp_reply((RawAddress*)addr, (bt_ssp_variant_t)type, accept, passkey);
+                                          └── int ret = sBluetoothInterface-&gt;ssp_reply((RawAddress*)addr, (bt_ssp_variant_t)type, accept, passkey);
                                               └── packages/modules/Bluetooth/system/btif/src/bluetooth.cc
                                                   └── do_in_main_thread(FROM_HERE, base::BindOnce(btif_dm_ssp_reply, *bd_addr, variant, accept))
                                                       └── packages/modules/Bluetooth/system/btif/src/btif_dm.cc
                                                           └── void btif_dm_ssp_reply(const RawAddress bd_addr, bt_ssp_variant_t variant, uint8_t accept) 
-```
-
-# 蓝牙状态变更上报
-
-这里以BondStateMachine为例进行代码跟踪，其他的回调也是类似
-```
-* packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java 
+</pre></div>
+</div>
+</section>
+<section id="id6">
+<h1>蓝牙状态变更上报<a class="headerlink" href="#id6" title="Permalink to this heading"></a></h1>
+<p>这里以BondStateMachine为例进行代码跟踪，其他的回调也是类似</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java 
   ├── classInitNative();
   │   └── packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp
-  │       ├── method_stateChangeCallback = env->GetMethodID(jniCallbackClass, "stateChangeCallback", "(I)V");
-  │       ├── method_deviceFoundCallback = env->GetMethodID(jniCallbackClass, "deviceFoundCallback", "([B)V");
-  │       ├── method_pinRequestCallback = env->GetMethodID(jniCallbackClass, "pinRequestCallback", "([B[BIZ)V");
-  │       ├── method_sspRequestCallback = env->GetMethodID(jniCallbackClass, "sspRequestCallback", "([B[BIII)V");
-  │       └── method_bondStateChangeCallback = env->GetMethodID(jniCallbackClass, "bondStateChangeCallback", "(I[BII)V");
+  │       ├── method_stateChangeCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;stateChangeCallback&quot;, &quot;(I)V&quot;);
+  │       ├── method_deviceFoundCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;deviceFoundCallback&quot;, &quot;([B)V&quot;);
+  │       ├── method_pinRequestCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;pinRequestCallback&quot;, &quot;([B[BIZ)V&quot;);
+  │       ├── method_sspRequestCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;sspRequestCallback&quot;, &quot;([B[BIII)V&quot;);
+  │       └── method_bondStateChangeCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;bondStateChangeCallback&quot;, &quot;(I[BII)V&quot;);
   └── public void onCreate()
       ├── mJniCallbacks = new JniCallbacks(this, mAdapterProperties);
       └── initNative(mUserManager.isGuestUser(), isCommonCriteriaMode(), configCompareResult, getInitFlags(), isAtvDevice, getApplicationInfo().dataDir);
-          └── int ret = sBluetoothInterface->init(&sBluetoothCallbacks, isGuest == JNI_TRUE ? 1 : 0,isCommonCriteriaMode == JNI_TRUE ? 1 : 0, configCompareResult, flags,isAtvDevice == JNI_TRUE ? 1 : 0, user_data_directory);//这里将回调函数传入
+          └── int ret = sBluetoothInterface-&gt;init(&amp;sBluetoothCallbacks, isGuest == JNI_TRUE ? 1 : 0,isCommonCriteriaMode == JNI_TRUE ? 1 : 0, configCompareResult, flags,isAtvDevice == JNI_TRUE ? 1 : 0, user_data_directory);//这里将回调函数传入
               └── static bt_callbacks_t sBluetoothCallbacks = {sizeof(sBluetoothCallbacks),adapter_state_change_callback,adapter_properties_callback,remote_device_properties_callback,device_found_callback,discovery_state_changed_callback,pin_request_callback,ssp_request_callback,bond_state_changed_callback,address_consolidate_callback,acl_state_changed_callback,callback_thread_event,dut_mode_recv_callback,le_test_mode_recv_callback,energy_info_recv_callback,link_quality_report_callback,generate_local_oob_data_callback,switch_buffer_size_callback,switch_codec_callback};
                   └── static void bond_state_changed_callback(bt_status_t status, RawAddress* bd_addr, bt_bond_state_t state,int fail_reason) 
-                      └── sCallbackEnv->CallVoidMethod(sJniCallbacksObj, method_bondStateChangeCallback,(jint)status, addr.get(), (jint)state,(jint)fail_reason);
+                      └── sCallbackEnv-&gt;CallVoidMethod(sJniCallbacksObj, method_bondStateChangeCallback,(jint)status, addr.get(), (jint)state,(jint)fail_reason);
                           └── packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/JniCallbacks.java
                               └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason)
                                   └── mBondStateMachine.bondStateChangeCallback(status, address, newState, hciReason);
@@ -224,15 +307,48 @@
                                                               └── bondStateChanged(device, state)
                                                                   └── void bondStateChanged(BluetoothDevice device, int bondState)
                                                                       └──  if (bondState != BluetoothDevice.BOND_NONE) return; //到这里最终好像也没处理什么
-```
-# 蓝牙配对状态改变
+</pre></div>
+</div>
+</section>
+<section id="id7">
+<h1>蓝牙配对状态改变<a class="headerlink" href="#id7" title="Permalink to this heading"></a></h1>
+<p>在userdebug版本下可以看到日志，蓝牙配对过程中状态的切换
+IDLE =&gt; WAIT_PIN_REQ =&gt; WAIT_NUM_CONFIRM =&gt; WAIT_AUTH_COMPLETE =&gt; IDLE</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">03</span><span class="o">-</span><span class="mi">23</span> <span class="mi">17</span><span class="p">:</span><span class="mi">56</span><span class="p">:</span><span class="mf">52.593652</span>  <span class="mi">9439</span>  <span class="mi">9489</span> <span class="n">I</span> <span class="n">bt_btm_sec</span><span class="p">:</span> <span class="n">btm_sec_change_pairing_state</span><span class="p">:</span> <span class="n">Pairing</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">IDLE</span> <span class="o">=&gt;</span> <span class="n">WAIT_PIN_REQ</span> <span class="n">pairing_flags</span><span class="p">:</span><span class="mh">0x5</span>
+<span class="mi">03</span><span class="o">-</span><span class="mi">23</span> <span class="mi">17</span><span class="p">:</span><span class="mi">56</span><span class="p">:</span><span class="mf">54.060246</span>  <span class="mi">9439</span>  <span class="mi">9489</span> <span class="n">I</span> <span class="n">bt_btm_sec</span><span class="p">:</span> <span class="n">btm_sec_change_pairing_state</span><span class="p">:</span> <span class="n">Pairing</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">WAIT_PIN_REQ</span> <span class="o">=&gt;</span> <span class="n">WAIT_LOCAL_IOCAPS</span> <span class="n">pairing_flags</span><span class="p">:</span><span class="mh">0x5</span>
+<span class="mi">03</span><span class="o">-</span><span class="mi">23</span> <span class="mi">17</span><span class="p">:</span><span class="mi">56</span><span class="p">:</span><span class="mf">54.311093</span>  <span class="mi">9439</span>  <span class="mi">9489</span> <span class="n">I</span> <span class="n">bt_btm_sec</span><span class="p">:</span> <span class="n">btm_sec_change_pairing_state</span><span class="p">:</span> <span class="n">Pairing</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">WAIT_LOCAL_IOCAPS</span> <span class="o">=&gt;</span> <span class="n">WAIT_NUM_CONFIRM</span> <span class="n">pairing_flags</span><span class="p">:</span><span class="mh">0x5</span>
+<span class="mi">03</span><span class="o">-</span><span class="mi">23</span> <span class="mi">17</span><span class="p">:</span><span class="mi">56</span><span class="p">:</span><span class="mf">55.985548</span>  <span class="mi">9439</span>  <span class="mi">9489</span> <span class="n">I</span> <span class="n">bt_btm_sec</span><span class="p">:</span> <span class="n">btm_sec_change_pairing_state</span><span class="p">:</span> <span class="n">Pairing</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">WAIT_NUM_CONFIRM</span> <span class="o">=&gt;</span> <span class="n">WAIT_AUTH_COMPLETE</span> <span class="n">pairing_flags</span><span class="p">:</span><span class="mh">0x5</span>
+<span class="mi">03</span><span class="o">-</span><span class="mi">23</span> <span class="mi">17</span><span class="p">:</span><span class="mi">56</span><span class="p">:</span><span class="mf">56.057715</span>  <span class="mi">9439</span>  <span class="mi">9489</span> <span class="n">I</span> <span class="n">bt_btm_sec</span><span class="p">:</span> <span class="n">btm_sec_change_pairing_state</span><span class="p">:</span> <span class="n">Pairing</span> <span class="n">state</span> <span class="n">changed</span> <span class="n">WAIT_AUTH_COMPLETE</span> <span class="o">=&gt;</span> <span class="n">IDLE</span> <span class="n">pairing_flags</span><span class="p">:</span><span class="mh">0x5</span>
+</pre></div>
+</div>
+</section>
 
-在userdebug版本下可以看到日志，蓝牙配对过程中状态的切换
-IDLE => WAIT_PIN_REQ => WAIT_NUM_CONFIRM => WAIT_AUTH_COMPLETE => IDLE
-```
-03-23 17:56:52.593652  9439  9489 I bt_btm_sec: btm_sec_change_pairing_state: Pairing state changed IDLE => WAIT_PIN_REQ pairing_flags:0x5
-03-23 17:56:54.060246  9439  9489 I bt_btm_sec: btm_sec_change_pairing_state: Pairing state changed WAIT_PIN_REQ => WAIT_LOCAL_IOCAPS pairing_flags:0x5
-03-23 17:56:54.311093  9439  9489 I bt_btm_sec: btm_sec_change_pairing_state: Pairing state changed WAIT_LOCAL_IOCAPS => WAIT_NUM_CONFIRM pairing_flags:0x5
-03-23 17:56:55.985548  9439  9489 I bt_btm_sec: btm_sec_change_pairing_state: Pairing state changed WAIT_NUM_CONFIRM => WAIT_AUTH_COMPLETE pairing_flags:0x5
-03-23 17:56:56.057715  9439  9489 I bt_btm_sec: btm_sec_change_pairing_state: Pairing state changed WAIT_AUTH_COMPLETE => IDLE pairing_flags:0x5
-```
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, lls.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

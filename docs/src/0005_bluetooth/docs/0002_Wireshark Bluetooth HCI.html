@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>lls</title>
+
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> 分析文档
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">Wireshark Bluetooth HCI</a></li>
+<li><a class="reference internal" href="#id1">参考文档</a></li>
+<li><a class="reference internal" href="#hic-log">HIC log</a></li>
+<li><a class="reference internal" href="#id2">蓝牙核心架构</a></li>
+<li><a class="reference internal" href="#hci-file">HCI file</a></li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">分析文档</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs"> 
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.forward()">Forward</a></li>
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.back()">Go Back</a> | </li>
+<li style="float: right;margin-left: 10px;"><a href="/index.html">Home</a> | </li>
+
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="wireshark-bluetooth-hci">
+<h1>Wireshark Bluetooth HCI<a class="headerlink" href="#wireshark-bluetooth-hci" title="Permalink to this heading"></a></h1>
+<p>使用Wireshark分析BT HCI(类比到Wifi nl80211)</p>
+</section>
+<section id="id1">
+<h1>参考文档<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p><a class="reference external" href="https://blog.csdn.net/u012932409/article/details/107066768/">MTK android 蓝牙版本查看</a></p></li>
+<li><p><a class="reference external" href="https://blog.csdn.net/grit_wang/article/details/107635258">Android Bluetooth HCI log 详解</a></p></li>
+</ul>
+</section>
+<section id="hic-log">
+<h1>HIC log<a class="headerlink" href="#hic-log" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p>HCI log是用来分析蓝牙设备之间的交互行为是否符合预期，是否符合蓝牙规范</p></li>
+<li><p>故障分析</p></li>
+<li><p>竟品分析。</p></li>
+<li><p>蓝牙学习</p></li>
+</ul>
+</section>
+<section id="id2">
+<h1>蓝牙核心架构<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p>蓝牙核心系统架构抽象为3层：</p>
+<ul>
+<li><p>User Application(Host)：User Application即应用层，也被称为Host，我们调用Bluetooth API就属于应用层</p></li>
+<li><p>HCI (Host controller Interface)：上层在调用蓝牙API时，不会直接操作蓝牙底层(Controller)相关接口，而是通过HCI下发对应操作的Command给Controller，然后底层执行命令后返回执行结果，即Controller发送Event给HCI，HCI再通知给应用层，HCI起到了一个中间层的作用</p></li>
+<li><p>Controller：Controller是在最底层，可以理解为我们手机上的蓝牙芯片。<br />
+<img alt="0001_bluetooth_structure.png" src="../../../_images/0001_bluetooth_structure.png" /></p></li>
+</ul>
+</li>
+<li><p>profile config: packages/apps/Bluetooth/res/values/config.xml</p></li>
+</ul>
+</section>
+<section id="hci-file">
+<h1>HCI file<a class="headerlink" href="#hci-file" title="Permalink to this heading"></a></h1>
+<ul>
+<li><p>如何抓取HCI log</p>
+<ul>
+<li><p>在开发者选项中打开启用蓝牙HCI信息收集日志开关
+<img alt="0001_enable_bluethooth_hci.png" src="src/0005_bluetooth/docs/images/0001_enable_bluethooth_hci.png" /></p></li>
+<li><p>需要开关下蓝牙</p></li>
+<li><p>MTK 保存蓝牙日志的路径：</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">misc</span><span class="o">/</span><span class="n">bluetooth</span><span class="o">/</span><span class="n">logs</span><span class="o">/</span><span class="n">BT_HCI_2023_0315_132134</span><span class="o">.</span><span class="n">cfa</span>
+</pre></div>
+</div>
+</li>
+<li><p>如果不确定蓝牙日志的路径，可以查看如下文件：</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cat</span> <span class="o">/</span><span class="n">etc</span><span class="o">/</span><span class="n">bluetooth</span><span class="o">/</span><span class="n">bt_stack</span><span class="o">.</span><span class="n">conf</span>
+<span class="n">会有类似如下信息</span>
+<span class="n">BtSnoopFileName</span><span class="o">=/</span><span class="n">data</span><span class="o">/</span><span class="n">log</span><span class="o">/</span><span class="n">bt</span><span class="o">/</span><span class="n">btsnoop_hci</span><span class="o">.</span><span class="n">log</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</li>
+</ul>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, lls.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

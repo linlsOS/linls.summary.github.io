@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>lls</title>
+
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> 分析文档
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">bluetooth a2dp</a></li>
+<li><a class="reference internal" href="#id1">参考文档</a></li>
+<li><a class="reference internal" href="#a2dp">a2dp</a></li>
+<li><a class="reference internal" href="#audio">连接状态改变，同audio 部分挂钩</a></li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">分析文档</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs"> 
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.forward()">Forward</a></li>
+<li style="float: right;margin-left: 10px;"><a href="javascript:history.back()">Go Back</a> | </li>
+<li style="float: right;margin-left: 10px;"><a href="/index.html">Home</a> | </li>
+
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="bluetooth-a2dp">
+<h1>bluetooth a2dp<a class="headerlink" href="#bluetooth-a2dp" title="Permalink to this heading"></a></h1>
+<p>bluetooth a2dp</p>
+</section>
+<section id="id1">
+<h1>参考文档<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p><a class="reference external" href="https://blog.csdn.net/baimy1985/article/details/9275559">android – 蓝牙 bluetooth （五）接电话与听音乐</a></p></li>
+<li><p><a class="reference external" href="https://blog.csdn.net/weixin_44260005/article/details/107225738">蓝牙音乐之A2DP</a></p></li>
+<li><p><a class="reference external" href="https://blog.csdn.net/weixin_44260005/article/details/107391323">蓝牙音乐之A2DP音频流</a></p></li>
+<li><p><a class="reference external" href="https://blog.csdn.net/weixin_44260005/article/details/107616222">A2DP音频流在安卓系统中的实现</a></p></li>
+</ul>
+</section>
+<section id="a2dp">
+<h1>a2dp<a class="headerlink" href="#a2dp" title="Permalink to this heading"></a></h1>
+<p>这里以BondStateMachine为例进行代码跟踪，其他的回调也是类似</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java 
+  ├── classInitNative();
+  │   └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_btservice_AdapterService.cpp 
+  │       ├── method_stateChangeCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;stateChangeCallback&quot;, &quot;(I)V&quot;);
+  │       ├── method_deviceFoundCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;deviceFoundCallback&quot;, &quot;([B)V&quot;);
+  │       ├── method_pinRequestCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;pinRequestCallback&quot;, &quot;([B[BIZ)V&quot;);
+  │       ├── method_sspRequestCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;sspRequestCallback&quot;, &quot;([B[BIII)V&quot;);
+  │       └── method_bondStateChangeCallback = env-&gt;GetMethodID(jniCallbackClass, &quot;bondStateChangeCallback&quot;, &quot;(I[BII)V&quot;);
+  └── public void onCreate()
+      ├── mJniCallbacks = new JniCallbacks(this, mAdapterProperties);
+      └── initNative(mUserManager.isGuestUser(), isCommonCriteriaMode(), configCompareResult, getInitFlags(), isAtvDevice, getApplicationInfo().dataDir);
+          └── int ret = sBluetoothInterface-&gt;init(&amp;sBluetoothCallbacks, isGuest == JNI_TRUE ? 1 : 0,isCommonCriteriaMode == JNI_TRUE ? 1 : 0, configCompareResult, flags,isAtvDevice == JNI_TRUE ? 1 : 0, user_data_directory);//这里将回调函数传入
+              └── static bt_callbacks_t sBluetoothCallbacks = {sizeof(sBluetoothCallbacks),adapter_state_change_callback,adapter_properties_callback,remote_device_properties_callback,device_found_callback,discovery_state_changed_callback,pin_request_callback,ssp_request_callback,bond_state_changed_callback,address_consolidate_callback,acl_state_changed_callback,callback_thread_event,dut_mode_recv_callback,le_test_mode_recv_callback,energy_info_recv_callback,link_quality_report_callback,generate_local_oob_data_callback,switch_buffer_size_callback,switch_codec_callback};
+                  └── static void bond_state_changed_callback(bt_status_t status, RawAddress* bd_addr, bt_bond_state_t state,int fail_reason) 
+                      └── sCallbackEnv-&gt;CallVoidMethod(sJniCallbacksObj, method_bondStateChangeCallback,(jint)status, addr.get(), (jint)state,(jint)fail_reason);
+                          └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/JniCallbacks.java
+                              └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason)
+                                  └── mBondStateMachine.bondStateChangeCallback(status, address, newState, hciReason);
+                                      └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/BondStateMachine.java
+                                          └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason) 
+                                              ├── Message msg = obtainMessage(BONDING_STATE_CHANGE);
+                                              └── sendMessage(msg);
+                                                  └── sendIntent(dev, newState, reason, false);
+                                                      └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/a2dp/A2dpService.java
+                                                          └── private class BondStateChangedReceiver extends BroadcastReceiver 
+                                                              └── bondStateChanged(device, state)
+                                                                  └── void bondStateChanged(BluetoothDevice device, int bondState)
+                                                                      └──  if (bondState != BluetoothDevice.BOND_NONE) return; //到这里最终好像也没处理什么
+</pre></div>
+</div>
+<p>a2dp connect</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/a2dp/A2dpStateMachine.java 
+  ├── if (!mA2dpNativeInterface.connectA2dp(mDevice))
+  │   └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/a2dp/A2dpNativeInterface.java
+  │       └── public boolean connectA2dp(BluetoothDevice device)
+  │           └── return connectA2dpNative(getByteAddress(device))
+  │               └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/jni/com_android_bluetooth_a2dp.cpp 
+  │                   └── static jboolean connectA2dpNative(JNIEnv* env, jobject object, jbyteArray address)
+  │                       └── bt_status_t status = sBluetoothA2dpInterface-&gt;connect(bd_addr);
+  │                           ├── sBluetoothA2dpInterface = (btav_source_interface_t*)btInf-&gt;get_profile_interface(BT_PROFILE_ADVANCED_AUDIO_ID)// initNative
+  │                           │   └── vendor/mediatek/proprietary/packages/modules/Bluetooth/system/service/bluetooth_interface.cc
+  │                           │       └── static const void* get_profile_interface(const char* profile_id) 
+  │                           │           ├── if (is_profile(profile_id, BT_PROFILE_ADVANCED_AUDIO_ID))
+  │                           │           └── return btif_av_get_src_interface();
+  │                           │               └── mediatek/proprietary/packages/modules/Bluetooth/system/btif/src/btif_av.cc 
+  │                           │                   └── const btav_source_interface_t* btif_av_get_src_interface(void) 
+  │                           │                       └── return &amp;bt_av_src_interface;
+  │                           │                           └──  static const btav_source_interface_t bt_av_src_interface = {sizeof(btav_source_interface_t),init_src, src_connect_sink,src_disconnect_sink, src_set_silence_sink,src_set_active_sink,codec_config_src,cleanup_src, };
+  │                           └── vendor/mediatek/proprietary/packages/modules/Bluetooth/system/btif/src/btif_av.cc 
+  │                               └── static bt_status_t src_connect_sink(const RawAddress&amp; peer_address)
+  │                                   └── return btif_queue_connect(UUID_SERVCLASS_AUDIO_SOURCE, &amp;peer_address_copy,connect_int);     
+  │                                       └── vendor/mediatek/proprietary/packages/modules/Bluetooth/system/btif/src/btif_profile_queue.cc 
+  │                                           └── bt_status_t btif_queue_connect(uint16_t uuid, const RawAddress* bda, btif_connect_cb_t connect_cb)     
+  │                                               └── return do_in_jni_thread(FROM_HERE,base::Bind(&amp;queue_int_add, uuid, *bda, connect_cb));   
+  │                                                   └── static void queue_int_add(uint16_t uuid, const RawAddress&amp; bda, btif_connect_cb_t connect_cb)   
+  │                                                       ├── connect_queue.push_back(param);  
+  │                                                       └── btif_queue_connect_next(); 
+  └── if (mA2dpService.okToConnect(mDevice, true)) 
+      └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/a2dp/A2dpService.java 
+          └── connectionPolicy = getConnectionPolicy(device);
+</pre></div>
+</div>
+</section>
+<section id="audio">
+<h1>连接状态改变，同audio 部分挂钩<a class="headerlink" href="#audio" title="Permalink to this heading"></a></h1>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/JniCallbacks.java
+  └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason)
+      └── mBondStateMachine.bondStateChangeCallback(status, address, newState, hciReason);
+          └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/BondStateMachine.java
+              └── void bondStateChangeCallback(int status, byte[] address, int newState, int hciReason) 
+                  ├── Message msg = obtainMessage(BONDING_STATE_CHANGE);
+                  └── sendMessage(msg);
+                      └── sendIntent(dev, newState, reason, false);
+                          └── vendor/mediatek/proprietary/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/a2dp/A2dpService.java
+                              └── private class ConnectionStateChangedReceiver extends BroadcastReceiver
+                                  └── connectionStateChanged(device, fromState, toState); 
+                                      └── setActiveDevice(device);
+                                          ├── final LeAudioService leAudioService = mFactory.getLeAudioService(); 
+                                          ├── updateAndBroadcastActiveDevice(device);
+                                          │   ├── Intent intent = new Intent(BluetoothA2dp.ACTION_ACTIVE_DEVICE_CHANGED);
+                                          │   └── sendBroadcast(intent, BLUETOOTH_CONNECT, Utils.getTempAllowlistBroadcastOptions());
+                                          ├── if (!mA2dpNativeInterface.setActiveDevice(device)) 
+                                          │   └── static jboolean setActiveDeviceNative(JNIEnv* env, jobject object, jbyteArray address)
+                                          │       └── bt_status_t status = sBluetoothA2dpInterface-&gt;set_active_device(bd_addr);
+                                          │           └── vendor/mediatek/proprietary/packages/modules/Bluetooth/system/btif/src/btif_av.cc 
+                                          │               └── static bt_status_t src_set_active_sink(const RawAddress&amp; peer_address) 
+                                          │                   └── bt_status_t status = do_in_main_thread(FROM_HERE, base::BindOnce(&amp;set_active_peer_int,AVDT_TSEP_SNK, peer_address, std::move(peer_ready_promise)));
+                                          └── mAudioManager.handleBluetoothActiveDeviceChanged(newActiveDevice,ull,BluetoothProfileConnectionInfo.createA2dpInfo(true,rememberedVolume));
+                                              └── frameworks/base/media/java/android/media/AudioManager.java
+                                                  └── service.handleBluetoothActiveDeviceChanged(newDevice, previousDevice, info);
+</pre></div>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, lls.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
