@@ -41,7 +41,7 @@ echo F | xcopy CNAME docs /i /y
 goto end
 
 :server
-python3 -m http.server -d %BUILDDIR%\html 8080
+python3 -m http.server -d %BUILDDIR%\html 8088
 goto end
 
 :pip

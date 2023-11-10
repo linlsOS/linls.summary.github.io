@@ -2,6 +2,9 @@
 
 i2c tool 介绍
 
+# 参考文档
+* [i2c-tools安装与使用总结](https://blog.csdn.net/anyuliuxing/article/details/106382827)
+
 # i2cdetect
 
 * 检测I2C总线上是否挂载了设备

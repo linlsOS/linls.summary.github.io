@@ -1,6 +1,6 @@
-# HowtoWriteDoc
+# 如何用VS code编写总结文档
 
-介绍如何新建文档，及常用快捷键
+如何用VS code编写总结文档
 
 # 说明
 
@@ -20,7 +20,13 @@
 * 区域显示用配对的   
   * diff表示显示的git patch；
   * 配对的符号前的空格需要保持一致，符号内的内容才能显示在区域内
-  * 右上角有预览窗口，可以在编写文档过程中打开预览窗口，看整体效果
+  * 右上角有预览窗口，可以在编写文档过程中打开预览窗口，看整体效果  
   ![0002_show_code.png](images/0002_show_code.png)
 * 代码堆栈
   *+一个空格，然后按ctrl + enter ，上下级间隔两个空格
+  代码输入格式如下，层级之间相距两个空格
+  ![0002_code_stack.png](images/0002_code_stack.png)  
+  然后输入ctrl + enter就是如下效果  
+  ![0002_code_track.png](images/0002_code_track.png)  
+
+* 文档中想换行，输入两个空格，在make html 后显示的效果就是换行
