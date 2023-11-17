@@ -1,6 +1,6 @@
-# mtk sensor bringup
+# sensor bringup
 
-mtk sensor bringup
+sensor bringup
 
 # menu
 
