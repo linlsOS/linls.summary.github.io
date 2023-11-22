@@ -4,6 +4,7 @@
 
 NO.  |文件名称|摘要
 :---:|:--|:--
+0008 | [鸿蒙](src/0008_鸿蒙/README.md) | 鸿蒙
 0007 | [内核设备驱动](src/0007_内核设备驱动/README.md) | 内核设备驱动
 0006 | [mtk_bsp_summary](src/0006_mtk_bsp_summary/README.md) | MTK bsp 总结
 0005 | [bluetooth](src/0005_bluetooth/README.md) | android 蓝牙分析
