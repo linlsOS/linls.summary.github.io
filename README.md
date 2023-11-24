@@ -4,6 +4,8 @@
 
 NO.  |文件名称|摘要
 :---:|:--|:--
+0010 | [android](src/0010_android/README.md) | android 系统
+0009 | [多媒体](src/0009_多媒体/README.md) | 多媒体
 0008 | [鸿蒙](src/0008_鸿蒙/README.md) | 鸿蒙
 0007 | [内核设备驱动](src/0007_内核设备驱动/README.md) | 内核设备驱动
 0006 | [mtk_bsp_summary](src/0006_mtk_bsp_summary/README.md) | MTK bsp 总结
