@@ -16,7 +16,7 @@ android zygote 简介
 * [Android 11进程启动分析（二）：Launcher启动流程分析](https://blog.csdn.net/u013028621/article/details/116533988)
 * [Zygote进程原理简单介绍，源码解析](https://blog.csdn.net/qq_41872247/article/details/125211491)
 * [Android技术探索](https://zhuanlan.zhihu.com/p/260414370)
-
+* [【图文分析】Android系统启动到应用界面展示的全流程](https://juejin.cn/post/7280924632457494563)
 
 # 简介
 
@@ -176,3 +176,9 @@ android zygote 简介
 # Zygote的IPC通信机制为什么不采用binder？如果采用binder的话会有什么问题么？
 
 第一个原因，我们可以设想一下采用binder调用的话该怎么做，首先zygote要启用binder机制，需要打开binder驱动，获得一个描述符，再通过mmap进行内存映射，还要注册binder线程，这还不够，还要创建一个binder对象注册到serviceManager，另外AMS要向zygote发起创建应用进程请求的话，要先从serviceManager查询zygote的binder对象，然后再发起binder调用，这来来回回好几趟非常繁琐，相比之下，zygote和SystemServer进程本来就是父子关系，对于简单的消息通信，用管道或者socket非常方便省事。第二个原因，如果zygote启用binder机制，再fork出SystemServer，那么SystemServer就会继承了zygote的描述符以及映射的内存，这两个进程在binder驱动层就会共用一套数据结构，这显然是不行的，所以还得先给原来的旧的描述符关掉，再重新启用一遍binder机制，这个就是自找麻烦了。
+
+# android 如何启动一个app
+
+1、当我们点击Launcher上的应用图标后，会产生input事件。这些input事件会先经过SystemServer里的2个native循环线程进行读取分发，分别是InputReader负责读取input事件，InputDispatcher负责分发input事件，最后会分发给Launcher来处理。
+2、Launcher收到input事件后，会去调用AMS.startActivity()来启动新的应用进程，这期间会先让Launcher进入Pause状态，接着通过socket通信，通知Zygote进程去fork新的应用进程
+3、Zygote接收到AMS传过来的信息后，就会去fork应用进程，并进行应用进程的初始化，体现在ZygoteInit.zygoteInit（）方法里：
