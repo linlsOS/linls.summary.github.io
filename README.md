@@ -4,7 +4,7 @@
 
 NO.  |文件名称|摘要
 :---:|:--|:--
-0011 | [面试准备](src/0011_面试准备/README.md) | 这个是文档模板
+0011 | [面试准备](src/0011_面试准备/README.md) | 面试资料准备
 0010 | [android](src/0010_android/README.md) | android 系统
 0009 | [多媒体](src/0009_多媒体/README.md) | 多媒体
 0008 | [鸿蒙](src/0008_鸿蒙/README.md) | 鸿蒙

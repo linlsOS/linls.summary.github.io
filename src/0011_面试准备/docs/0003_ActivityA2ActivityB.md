@@ -5,7 +5,7 @@ Activity A 启动另一个Activity B 会调用哪些方法？如果B是透明主
 # 参考文档
 
 * [Activity A启动另一个Activity B会回调哪些方法？如果Activity B是完全透明呢？如果启动的是一个Dialog呢？](https://www.cnblogs.com/aademeng/articles/10890396.html)
-
+* [Android面试题-Activity A跳转Activity B，再按返回键，生命周期执行的顺序](https://blog.csdn.net/u013700040/article/details/105458684)
 
 # ActivityA_2_ActivityB
 

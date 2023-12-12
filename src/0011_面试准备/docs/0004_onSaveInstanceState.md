@@ -5,6 +5,7 @@
 # 参考文档
 
 * [Android应用开发—onSaveInstanceState方法什么时候被调用?](https://blog.csdn.net/voidreturn/article/details/79207344)
+* [onSavedInstanceState()和onRestoreInstanceState()理解](https://blog.csdn.net/shouniezhe/article/details/47705001?spm=1001.2101.3001.6661.1&utm_medium=distribute.pc_relevant_t0.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7ERate-1-47705001-blog-121893938.235%5Ev39%5Epc_relevant_3m_sort_dl_base4&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-2%7Edefault%7EBlogCommendFromBaidu%7ERate-1-47705001-blog-121893938.235%5Ev39%5Epc_relevant_3m_sort_dl_base4&utm_relevant_index=1)
 
 Activity 中的 onSaveInstanceState() 方法和 onRestoreInstanceState() 方法并不是生命周期方法，它们不同于 onCreate()、onPause() 等生命周期方法，它们并不一定会被触发。  
 当应用遇到意外情况（如：内存不足、用户直接按Home键），由系统销毁一个 Activity 时，onSaveInstanceState() 方法就会被调用。但是当用户主动去销毁一个 Activity 时，例如在应用  
@@ -33,8 +34,17 @@ onSaveInstanceState() 方法呢？这就得看情况了，如果你自己的派�
 * 从activity A中启动一个新的activity时。
 * 屏幕方向切换时，例如从竖屏切换到横屏时。 
 
+# onRestoreInstanceState
+
+onRestoreInstanceState用于恢复之前临时保存的activity状态,触发时机：
+
+1、activity被回收  
+  当activity被切换到后台或者启动新的activity后，原有activity就会被销毁，再次回来时，就会执行onRestoreInstanceState了。
+
+2、屏幕旋转、改变系统语言、字体大小变化
 
 
-* 思考
-* 思考
-* 思考
+onSaveInstanceState()会在onPause()或onStop()之前执行，onRestoreInstanceState()会在onStart()和onResume()之间执行。
+
+
+onRestoreInstanceState()会跟onSaveInstanceState()并不会成对出现，onSaveInstanceState()需要调用的时，activity可能销毁，也可能没有销毁，只有在activity销毁重建的时候onRestoreInstanceState()才会调用。
