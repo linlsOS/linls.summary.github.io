@@ -1,0 +1,270 @@
+From 6e850aee0c4c7b8e77396eea3c8bc3519901358d Mon Sep 17 00:00:00 2001
+From: linliangsong <linliangsong@boe.com.cn>
+Date: Tue, 14 Jan 2025 10:19:04 +0800
+Subject: [PATCH 6/7] add uibc jni interface
+
+---
+ packages/apps/AiMntServiceCode/.idea/vcs.xml  |  6 ++
+ .../apps/WifiDisplay/jni/wfdsink_jni.cpp      | 59 +++++++++++++-
+ .../com/rockchip/wfd/WifiDisplayActivity.java | 76 ++++++++++++++++++-
+ .../com/rockchip/wfd/WifiDisplayService.java  | 14 ++++
+ 4 files changed, 150 insertions(+), 5 deletions(-)
+ create mode 100644 packages/apps/AiMntServiceCode/.idea/vcs.xml
+
+diff --git a/packages/apps/AiMntServiceCode/.idea/vcs.xml b/packages/apps/AiMntServiceCode/.idea/vcs.xml
+new file mode 100644
+index 0000000000..c2365ab11f
+--- /dev/null
++++ b/packages/apps/AiMntServiceCode/.idea/vcs.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="VcsDirectoryMappings">
++    <mapping directory="$PROJECT_DIR$/../../.." vcs="Git" />
++  </component>
++</project>
+\ No newline at end of file
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/wfdsink_jni.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/wfdsink_jni.cpp
+index 4271934986..0ec6f91938 100755
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/wfdsink_jni.cpp
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/wfdsink_jni.cpp
+@@ -42,6 +42,8 @@ using namespace android;
+ 
+ #define UNUSED(x)  (void)(x)
+ 
++sp<WifiDisplaySink> mSink; 
++
+ static int Search_ipAddr(const char *hwSrcAddr,char *IpAddr)
+ {
+ 	//FILE *fp = fopen("/data/misc/dhcp/dnsmasq.leases", "rb");
+@@ -151,14 +153,15 @@ int startWFDSink(const char *devaddr, bool isgo) {
+     sp<ALooper> looper = new ALooper;
+     looper->setName("wfd");
+ 
+-    sp<WifiDisplaySink> sink = new WifiDisplaySink(session);
+-    looper->registerHandler(sink);
++    //sp<WifiDisplaySink> sink = new WifiDisplaySink(session);
++    mSink = new WifiDisplaySink(session);
++    looper->registerHandler(mSink);
+     if (connectToPort >= 0) {
+ 	ALOGD("start---------WFD s connectToPort=%d connectToHost.c_str() %s",connectToPort,connectToHost.c_str() );
+-        sink->start(connectToHost.c_str(), connectToPort);
++        mSink->start(connectToHost.c_str(), connectToPort);
+     } else {
+ 	ALOGD("start---------WFD s connectToPort=%d uri.c_str() %s",connectToPort,uri.c_str() );
+-        sink->start(uri.c_str());
++        mSink->start(uri.c_str());
+     }
+ 
+     looper->start(true /* runOnCallingThread */); 
+@@ -171,12 +174,60 @@ static jint android_p2p_startWFDSink(JNIEnv *env, jobject *thiz, jstring peerinf
+    if (peerinfoStr == NULL) {  // Out of memory
+         return -1;
+    }
++   ALOGD("[%s][%d]\n", __FUNCTION__,__LINE__);
+    return startWFDSink(peerinfoStr, go);
+ }
+ 
++int getWfdParam(int paramType) {
++
++    return mSink->getWfdParam(paramType);
++
++}
++
++status_t sendUibcEvent(const char *pEventDes) {
++    //const char* pEventDes = eventDesc.string();
++    int type = *pEventDes;
++
++    ALOGD("[%s][%d]: eventDesc=%s", __FUNCTION__,__LINE__,pEventDes);
++
++    if (*(pEventDes+1) != ',')
++        return BAD_VALUE;
++
++    ALOGD("sendUibcEvent: type=0x%X", type);
++
++    switch (type) {
++    case 0x30:
++    case 0x31:
++    case 0x32:
++        mSink->sendUIBCGenericTouchEvent(pEventDes);
++    break;
++    case 0x33:
++    case 0x34:
++        mSink->sendUIBCGenericKeyEvent(pEventDes);
++    break;
++    default:
++        return BAD_VALUE;
++    }
++    return OK;
++}
++
++
++static jint android_p2p_sendUibcEvent(JNIEnv *env, jobject *thiz, jstring eventDesc) {
++   UNUSED(thiz);
++   //ALOGD("[%s][%d]\n", __FUNCTION__,__LINE__);
++   const char *eventDescStr = env->GetStringUTFChars(eventDesc, NULL);
++   if (eventDescStr == NULL) {  // Out of memory
++        return -1;
++   }
++   //ALOGD("[%s][%d]eventDescStr[%s]\n", __FUNCTION__,__LINE__,eventDescStr);
++   return sendUibcEvent(eventDescStr);
++}
++
+ static const JNINativeMethod gMethods[] = {
+     { "native_startWFDSink", "(Ljava/lang/String;Z)I",
+       (void *)android_p2p_startWFDSink },
++    { "native_sendUibcEvent", "(Ljava/lang/String;)I",
++      (void *)android_p2p_sendUibcEvent },
+ };
+ 
+ int register_android_p2p_wfdsink(JNIEnv *env) {
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayActivity.java b/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayActivity.java
+index b00987151c..92a193bdac 100755
+--- a/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayActivity.java
++++ b/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayActivity.java
+@@ -49,7 +49,8 @@ import android.widget.LinearLayout;
+ import android.widget.Toast;
+ import android.widget.LinearLayout.LayoutParams;
+ import android.widget.TextView;
+-
++import android.view.KeyEvent;
++import android.view.MotionEvent;
+ public class WifiDisplayActivity extends Activity implements PeerListListener, PersistentGroupInfoListener, GroupInfoListener {
+ 
+     private static final String TAG = "WifiDisplayActivity";
+@@ -79,6 +80,10 @@ public class WifiDisplayActivity extends Activity implements PeerListListener, P
+     private static final String SAVE_DIALOG_PEER = "PEER_STATE";
+     private static final String SAVE_DEVICE_NAME = "DEV_NAME";
+ 
++    final static int GENERIC_INPUT_TYPE_ID_TOUCH_DOWN = 0;
++    final static int GENERIC_INPUT_TYPE_ID_TOUCH_UP = 1;
++    final static int GENERIC_INPUT_TYPE_ID_TOUCH_MOVE = 2;
++
+     private WifiP2pDevice mThisDevice;
+     private WifiP2pDeviceList mPeers = new WifiP2pDeviceList();
+ 
+@@ -629,4 +634,73 @@ stopService(intent);
+ 		}
+ 	};
+ 
++    @Override
++    public boolean dispatchKeyEvent(KeyEvent event) {
++        Log.d(TAG,"dispatchKeyEvent getKeyCode=" + event.getKeyCode() + " event.getAction()=" + event.getAction());
++        return super.dispatchKeyEvent(event);
++    }
++
++    @Override
++    public boolean onKeyDown(int keyCode, KeyEvent event) {
++        Log.d(TAG,"onKeyDown keyCode=" + keyCode);
++        return super.onKeyDown(keyCode, event);
++    }
++
++    private String getTouchEventDesc(MotionEvent ev) {
++        final int pointerCount = ev.getPointerCount();
++        StringBuilder eventDesc = new StringBuilder();
++        eventDesc.append(String.valueOf(pointerCount)).append(",");
++        for (int p = 0; p < pointerCount; p++) {
++            eventDesc.append(String.valueOf(ev.getPointerId(p)))
++                    .append(",").append(
++                            String.valueOf((int) (ev.getXPrecision() * ev
++                                    .getX(p)))).append(",").append(
++                            String.valueOf((int) (ev.getYPrecision() * ev
++                                    .getY(p)))).append(",");
++        }
++        return eventDesc.toString();
++    }
++
++    @Override
++    public boolean onTouchEvent(MotionEvent event) {
++        final int action = event.getAction();
++        Log.d(TAG, "onTouchEvent action=" + action);
++        if(WifiDisplayService.isWifiDisplayConnect()){
++            switch (action & MotionEvent.ACTION_MASK) {
++                case MotionEvent.ACTION_DOWN: {
++                    StringBuilder eventDesc = new StringBuilder();
++                    eventDesc.append(
++                            String.valueOf(GENERIC_INPUT_TYPE_ID_TOUCH_DOWN))
++                            .append(",");
++
++                    eventDesc.append(getTouchEventDesc(event));
++                    WifiDisplayService.sendUibcInputEvent(eventDesc.toString());
++                    break;
++                }
++                case MotionEvent.ACTION_UP: {
++                    StringBuilder eventDesc = new StringBuilder();
++                    eventDesc.append(
++                            String.valueOf(GENERIC_INPUT_TYPE_ID_TOUCH_UP))
++                            .append(",");
++
++                    eventDesc.append(getTouchEventDesc(event));
++                    WifiDisplayService.sendUibcInputEvent(eventDesc.toString());
++                    break;
++                }
++                case MotionEvent.ACTION_MOVE: {
++                    StringBuilder eventDesc = new StringBuilder();
++                    eventDesc.append(
++                            String.valueOf(GENERIC_INPUT_TYPE_ID_TOUCH_MOVE))
++                            .append(",");
++
++                    eventDesc.append(getTouchEventDesc(event));
++                    WifiDisplayService.sendUibcInputEvent(eventDesc.toString());
++                    break;
++                }
++            }
++            return true;
++        }
++        return super.onTouchEvent(event);
++    }
++
+ }
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayService.java b/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayService.java
+index 1e700b5191..efc3609432 100755
+--- a/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayService.java
++++ b/vendor/rockchip/common/apps/WifiDisplay/src/com/rockchip/wfd/WifiDisplayService.java
+@@ -53,6 +53,7 @@ public class WifiDisplayService extends Service {
+ 	private boolean mWfdEnabled = false;
+ 	private boolean mWfdServiceEnabled = false;
+ 	private boolean mWifiP2pSearching = false;
++	private static boolean mWifiDisplayConnect = false;
+ 	private final ArrayList<WifiP2pDevice> mWifiDisplayPeers = new ArrayList<WifiP2pDevice>();
+ 	private Handler mMainHandler;
+ 	PowerManager mPowerManager = null;
+@@ -61,6 +62,7 @@ public class WifiDisplayService extends Service {
+         Thread mwfdSinkThread;
+ 
+         public native int native_startWFDSink(String devaddr, boolean go);
++        public static native int native_sendUibcEvent(String eventDesc);
+ 
+         static {
+            System.loadLibrary("wfdsink_jni");
+@@ -360,10 +362,12 @@ public class WifiDisplayService extends Service {
+                                     mwfdSinkThread = new Thread("wfdSink thread") {
+                                         @Override
+                                         public void run() {
++                                            mWifiDisplayConnect = true;
+                                             int ret = native_startWFDSink(cmdargs, isgo);
+                                             if (ret < 0) {
+                                                Log.e(TAG, "error, start wfdsink thread failed");
+                                             }
++                                            mWifiDisplayConnect = false;
+                                             Log.d(TAG, "wfdsink thread exit");
+                                         }
+                                     };
+@@ -456,4 +460,14 @@ public class WifiDisplayService extends Service {
+ 			}
+ 		}
+ 	}
++
++	public static boolean isWifiDisplayConnect() {
++        return mWifiDisplayConnect;
++    }
++
++	public static void sendUibcInputEvent(String keyevent) {
++		Log.d(TAG, "sendUibcInputEvent keyevent="+ keyevent);
++		native_sendUibcEvent(keyevent);
++    }
++
+ }
+-- 
+2.25.1
+

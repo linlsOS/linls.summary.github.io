@@ -1,0 +1,37 @@
+From 04f3d3816c08eb36815d2bc6e3346bcb816d5d14 Mon Sep 17 00:00:00 2001
+From: linliangsong <linliangsong@boe.com.cn>
+Date: Wed, 4 Dec 2024 18:28:03 +0800
+Subject: [PATCH] resolve change the setting data AC off not save
+
+---
+ device/rockchip/common/scripts/fstab_tools/fstab.in | 2 +-
+ system/core/fs_mgr/fs_mgr_fstab.cpp                 | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/device/rockchip/common/scripts/fstab_tools/fstab.in b/device/rockchip/common/scripts/fstab_tools/fstab.in
+index 634df26887..d86d4f59fa 100755
+--- a/device/rockchip/common/scripts/fstab_tools/fstab.in
++++ b/device/rockchip/common/scripts/fstab_tools/fstab.in
+@@ -26,6 +26,6 @@ ${_block_prefix}odm     /odm      ext4 ro,barrier=1 ${_flags},first_stage_mount
+ # For sdmmc
+ /devices/platform/${_sdmmc_device}/mmc_host*        auto  auto    defaults        voldmanaged=sdcard1:auto
+ #  Full disk encryption has less effect on rk3326, so default to enable this.
+-/dev/block/by-name/userdata /data f2fs noatime,nosuid,nodev,discard,reserve_root=32768,resgid=1065 latemount,wait,check,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized,keydirectory=/metadata/vold/metadata_encryption,quota,formattable,reservedsize=128M,checkpoint=fs
++/dev/block/by-name/userdata /data f2fs noatime,nosuid,nodev,dirsync,discard,reserve_root=32768,resgid=1065 latemount,wait,check,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized,keydirectory=/metadata/vold/metadata_encryption,quota,formattable,reservedsize=128M,checkpoint=fs
+ # for ext4
+ #/dev/block/by-name/userdata    /data      ext4    discard,noatime,nosuid,nodev,noauto_da_alloc,data=ordered,user_xattr,barrier=1,resgid=1065    latemount,wait,formattable,check,fileencryption=software,quota,reservedsize=128M,checkpoint=block
+diff --git a/system/core/fs_mgr/fs_mgr_fstab.cpp b/system/core/fs_mgr/fs_mgr_fstab.cpp
+index 8c719c8682..f52ff22b09 100644
+--- a/system/core/fs_mgr/fs_mgr_fstab.cpp
++++ b/system/core/fs_mgr/fs_mgr_fstab.cpp
+@@ -74,6 +74,7 @@ FlagList kMountFlagsList[] = {
+         {"slave", MS_SLAVE},
+         {"shared", MS_SHARED},
+         {"defaults", 0},
++        {"dirsync", MS_DIRSYNC},
+ };
+ 
+ off64_t CalculateZramSize(int percentage) {
+-- 
+2.25.1
+

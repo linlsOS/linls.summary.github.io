@@ -1,0 +1,25 @@
+From cc14f860c54677073f6495ed2d04a96f568996c5 Mon Sep 17 00:00:00 2001
+From: wangxianlin <wangxianlin@boe.com.cn>
+Date: Wed, 13 Nov 2024 15:52:02 +0800
+Subject: [PATCH 3/3] open mpp_srv for camera preview fail
+
+---
+ .../dts/rockchip/ai-monitor-rk3588s-tablet-single-inch34.dtsi   | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel-5.10/arch/arm64/boot/dts/rockchip/ai-monitor-rk3588s-tablet-single-inch34.dtsi b/kernel-5.10/arch/arm64/boot/dts/rockchip/ai-monitor-rk3588s-tablet-single-inch34.dtsi
+index 287c59b957..c3e04dea30 100644
+--- a/kernel-5.10/arch/arm64/boot/dts/rockchip/ai-monitor-rk3588s-tablet-single-inch34.dtsi
++++ b/kernel-5.10/arch/arm64/boot/dts/rockchip/ai-monitor-rk3588s-tablet-single-inch34.dtsi
+@@ -776,7 +776,7 @@ &i2s5_8ch {
+ 
+ 
+ &mpp_srv {
+-	status = "disabled";
++	status = "okay";
+ };
+ 
+ &pdm0 {
+-- 
+2.25.1
+

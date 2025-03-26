@@ -1,0 +1,144 @@
+# 手动抓取ftrace event
+
+手动操作一下获取ftrace event并转换到kernelshark显示
+
+# steps
+
+* apt-get install kernelshark
+* cd /sys/kernel/debug/
+* cat available_events | grep print
+```
+printk:console
+```
+* cat events/printk/enable
+```
+0
+```
+* echo “printk:console” > set_event
+  * 打开printk的console event
+  * echo “printk:*” > set_event
+* cat set_event
+```
+printk:console 
+```
+* cat events/printk/enable
+```
+1
+```
+* echo > set_event_pid
+* echo > trace  
+  * 清空buffer
+* echo 1 > tracing_on
+* cat trace
+```
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 0/0   #P:4
+#
+#                              _-----=> irqs-off
+#                             / _----=> need-resched
+#                            | / _---=> hardirq/softirq
+#                            || / _--=> preempt-depth
+#                            ||| /     delay
+#           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |       |   ||||       |         |
+```
+* echo zengjf > trace_marker
+* cat trace
+```
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 1/1   #P:4
+#
+#                              _-----=> irqs-off
+#                             / _----=> need-resched
+#                            | / _---=> hardirq/softirq
+#                            || / _--=> preempt-depth
+#                            ||| /     delay
+#           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |       |   ||||       |         |
+            bash-1122  [000] ....   214.838132: tracing_mark_write: zengjf
+```
+* sudo trace-cmd extract
+  * trace.dat
+* kernelshark
+  下图中除了我自己输入的第一条，后面的是别的进程输出
+![0005_Capture_ftrace_event.png](images/0005_Capture_ftrace_event.png)
+
+# 处理方法注释
+
+* echo 0 > /sys/kernel/debug/tracing/tracing_on
+  * 停止记录
+* echo > /sys/kernel/debug/tracing/trace
+  * 清空buffer
+* echo 51200 > /sys/kernel/debug/tracing/buffer_size_kb 
+  * 设置trace buffer大小
+* echo *:* > /sys/kernel/debug/tracing/set_event
+  * 设置需要记录那些事情
+  * /sys/kernel/debug/tracing/available_events
+   * A list of events that can be enabled in tracing.
+  * cat available_events | grep print
+  ```
+  printk:console
+  ```
+* echo 1 > /sys/kernel/debug/tracing/tracing_on
+  * 开始记录
+* sleep 10
+  * 等待记录10s
+* echo 0 > /sys/kernel/debug/tracing/tracing_on
+  * 停止记录
+* /sys/kernel/debug/tracing
+```
+README               current_tracer per_cpu             set_event     trace_marker        tracing_on
+available_events     events         printk_formats      set_event_pid trace_options       tracing_thresh
+available_tracers    free_buffer    saved_cmdlines      snapshot      trace_pipe
+buffer_size_kb       instances      saved_cmdlines_size trace         tracing_cpumask
+buffer_total_size_kb options        saved_tgids         trace_clock   tracing_max_latency
+```
+  * trace：抓取到的文件，可以load到解析工具上作为可视化解析
+  * tracing_on：打开关闭trace的开关echo 0 关闭 echo 1打开；
+  * current_tracer：查看当前抓取哪些信息
+  * available_tracers：支持的tracer
+  * available_events：支持的events
+  * set_ftrace_pid：配置需要监测的pid
+
+# trace-cmd采集数据原理
+
+* 采集所有CPU输出的Trace
+  * /sys/kernel/debug/tracing/per_cpu/
+    * cpu[x]
+      * trace_pipe_raw
+* 将上面的CPU执行时输出的trace通过splice/pip/socket传输，socket接收到数据，然后解析到trace.dat中
+
+
+# KernelShark Build
+* wget https://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git/snapshot/trace-cmd-kernelshark-v1.0.tar.gz
+* tar xvf trace-cmd-kernelshark-v1.0.tar.gz
+* cd trace-cmd-kernelshark-v1.0
+* sudo apt-get install build-essential git cmake libjson-c-dev -y
+* sudo apt-get install freeglut3-dev libxmu-dev libxi-dev -y
+* sudo apt-get install qtbase5-dev -y
+* sudo apt-get install -y swig
+* make gui error
+```
+make[1]: '/home/pi/zengjf/trace-cmd-kernelshark-v1.0/lib/traceevent/libtraceevent.a' is up to date.
+make[1]: '/home/pi/zengjf/trace-cmd-kernelshark-v1.0/lib/trace-cmd/libtracecmd.a' is up to date.
+make[1]: 'ctracecmd.so' is up to date.
+[ 22%] Built target kshark
+[ 33%] Built target kshark-plot
+[ 44%] Built target missed_events
+[ 55%] Built target sched_events
+[ 62%] Built target dfilter
+[ 66%] Building CXX object examples/CMakeFiles/widgetdemo.dir/widgetdemo.cpp.o
+/home/pi/zengjf/trace-cmd-kernelshark-v1.0/kernel-shark/examples/widgetdemo.cpp:16:10: fatal error: QtWidgets: No such file or directory
+ #include <QtWidgets>
+          ^~~~~~~~~~~
+compilation terminated.
+make[3]: *** [examples/CMakeFiles/widgetdemo.dir/build.make:63: examples/CMakeFiles/widgetdemo.dir/widgetdemo.cpp.o] Error 1
+make[2]: *** [CMakeFiles/Makefile2:328: examples/CMakeFiles/widgetdemo.dir/all] Error 2
+make[1]: *** [Makefile:130: all] Error 2
+make: *** [Makefile:272: gui] Error 2
+```
+  * kernel-shark/CMakeLists.txt
+    * 注释掉：add_subdirectory(${KS_DIR}/examples)
+* 最终编译出来的显示效果不好，时间轴不能正常显示

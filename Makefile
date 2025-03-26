@@ -7,7 +7,7 @@ SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = .
 BUILDDIR      = _build
-HTTPPORT      = 8088
+HTTPPORT      = 8089
 SERVERSTATUS  = $(strip $(shell ps x | grep http.server | grep -v grep | wc -l))
 SERVERPID     = $(strip $(shell ps x | grep http.server | grep -v grep | xargs echo | cut -d " " -f 1))
 

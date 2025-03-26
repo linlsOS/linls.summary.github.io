@@ -1,0 +1,198 @@
+From d55a4c615a368fb9359d6d842c27da0d7f698b09 Mon Sep 17 00:00:00 2001
+From: linliangsong <linliangsong@boe.com.cn>
+Date: Thu, 16 Jan 2025 11:05:32 +0800
+Subject: [PATCH 7/7] wifidisplay support uibc
+
+---
+ .../apps/WifiDisplay/jni/UibcMessage.cpp      | 27 ++++++++
+ .../WifiDisplay/jni/UibcServerHandler.cpp     | 67 ++++++++++++++-----
+ 2 files changed, 78 insertions(+), 16 deletions(-)
+
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp
+index e50d65f05b..39c8718bb1 100644
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp
+@@ -555,6 +555,33 @@ void UibcMessage::getScreenResolution(int* x, int* y) {
+     sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
+             ISurfaceComposer::eDisplayIdMain));
+ #endif
++
++#if (PLATFORM_VERSION >= 12)
++    CHECK(display != nullptr);
++    ui::DisplayMode mode;
++    CHECK_EQ(SurfaceComposerClient::getActiveDisplayMode(display, &mode), NO_ERROR);
++    const ui::Size& resolution = mode.resolution;
++    *x = resolution.getWidth();
++    *y = resolution.getHeight();
++    //ALOGD("display is %zd x %zd\n", *x, *y);
++#elif (PLATFORM_VERSION == 11)
++    DisplayConfig config;
++    CHECK_EQ(SurfaceComposerClient::getActiveDisplayConfig(display, &config), NO_ERROR);
++    const ui::Size& resolution = config.resolution;
++    *x = resolution.getWidth();
++    *y displayHeight = resolution.getHeight();
++#else
++    DisplayInfo info;
++    SurfaceComposerClient::getDisplayInfo(display, &info);
++    if(info.w > info.h)
++    {
++         *x = (int32_t)info.w;
++         *y = (int32_t)info.h;
++    } else {
++         *x = (int32_t)info.h;
++         *y = (int32_t)info.w;
++    }   
++#endif
+ /*    DisplayInfo info;
+     SurfaceComposerClient::getDisplayInfo(display, &info);
+     *x = info.w;
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp
+index be45e55f99..518dcf3358 100644
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp
+@@ -32,6 +32,8 @@
+ #include <ui/DisplayConfig.h>
+ #elif (PLATFORM_VERSION >= 12)
+ #include <ui/DisplayMode.h>
++#include <ui/DisplayState.h>
++#include <input/DisplayViewport.h>
+ #else 
+ #include <ui/DisplayInfo.h>
+ #endif
+@@ -78,7 +80,7 @@ UibcServerHandler::UibcServerHandler(sp<IRemoteDisplayClient> remoteClient)
+       m_XYSwitch(false),
+       m_mouseCursorSupported(false),
+       mRemoteClient(remoteClient) {
+-      // m_Orientation = DISPLAY_ORIENTATION_0;
++       m_Orientation = DISPLAY_ORIENTATION_0;
+ }
+ 
+ UibcServerHandler::~UibcServerHandler() {
+@@ -443,7 +445,6 @@ status_t UibcServerHandler::sendKeyEvent(UINT16 code, int isPress) {
+ 
+ void UibcServerHandler::updateScreenMode() {
+ 
+-#if 0
+     display_mode localDisplayMode = DISPLAY_MODE_PORTRAIT;
+     display_mode remoteDisplayMode = DISPLAY_MODE_PORTRAIT;
+ 
+@@ -453,27 +454,62 @@ void UibcServerHandler::updateScreenMode() {
+     sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
+             ISurfaceComposer::eDisplayIdMain));
+ #endif
++
++    int32_t width, height;
++#if (PLATFORM_VERSION >= 12)
++    CHECK(display != nullptr);
++    ui::DisplayMode mode;
++    CHECK_EQ(SurfaceComposerClient::getActiveDisplayMode(display, &mode), NO_ERROR);
++    const ui::Size& resolution = mode.resolution;
++    width = resolution.getWidth();
++    height = resolution.getHeight();
++    ui::DisplayState displayState;
++    CHECK_EQ(SurfaceComposerClient::getDisplayState(display, &displayState), NO_ERROR);
++    m_Orientation = (uint8_t)displayState.orientation;
++    //ALOGD("display is %zd x %zd\n", *x, *y);
++#elif (PLATFORM_VERSION == 11)
++    DisplayConfig config;
++    CHECK_EQ(SurfaceComposerClient::getActiveDisplayConfig(display, &config), NO_ERROR);
++    const ui::Size& resolution = config.resolution;
++    width = resolution.getWidth();
++    height = resolution.getHeight();
++#else
+     DisplayInfo info;
+     SurfaceComposerClient::getDisplayInfo(display, &info);
++    width = (int32_t)info.w;
++    height = (int32_t)info.h;
+     m_Orientation = info.orientation;
++    /*if(info.w > info.h)
++    {
++         *x = (int32_t)info.w;
++         *y = (int32_t)info.h;
++    } else {
++         *x = (int32_t)info.h;
++         *y = (int32_t)info.w;
++    }*/   
++#endif
++
++    //DisplayInfo info;
++    //SurfaceComposerClient::getDisplayInfo(display, &info);
++    //m_Orientation = info.orientation;
+ 
+     //ALOGD("updateScreenMode: info.orientation:%d info.w:%d info.h:%d", info.orientation, info.w, info.h);
+ 
+-    if (info.w > info.h)
++    if (width > height)
+         localDisplayMode = DISPLAY_MODE_LANDSCAPE;
+ 
+     if (m_wfdWidth > m_wfdHeight)
+         remoteDisplayMode = DISPLAY_MODE_LANDSCAPE;
+ 
+-    if (info.orientation == DISPLAY_ORIENTATION_90 ||
+-        info.orientation == DISPLAY_ORIENTATION_270) {
++    if (m_Orientation == DISPLAY_ORIENTATION_90 ||
++        m_Orientation == DISPLAY_ORIENTATION_270) {
+         localDisplayMode = (localDisplayMode == DISPLAY_MODE_LANDSCAPE ?
+                             DISPLAY_MODE_PORTRAIT : DISPLAY_MODE_LANDSCAPE);
+-        m_localWidth = info.h;
+-        m_localHeight = info.w;
++        m_localWidth = height;
++        m_localHeight = width;
+     } else {
+-        m_localWidth = info.w;
+-        m_localHeight = info.h;
++        m_localWidth = width;
++        m_localHeight = height;
+     }
+ 
+     m_widthRatio = (double)m_localWidth / (double)m_wfdWidth;
+@@ -491,7 +527,7 @@ void UibcServerHandler::updateScreenMode() {
+         }
+     }
+ 
+-    switch (info.orientation) {
++    switch (m_Orientation) {
+     case DISPLAY_ORIENTATION_0:
+         m_XYSwitch = false;
+         m_XRevert = false;
+@@ -515,17 +551,16 @@ void UibcServerHandler::updateScreenMode() {
+     default:
+         break;
+     }
+-    ALOGD("uibc screen mode: localDisplayMode:%d, remoteDisplayMode:%d" \
++    ALOGD("[%s]uibc screen mode: localDisplayMode:%d, remoteDisplayMode:%d" \
+           "m_localWidth:%d, m_localHeight:%d" \
+           "m_wfdWidth:%d, m_wfdHeight:%d" \
+           "m_widthRatio:%f, m_heightRatio:%f" \
+           "m_XOffset:%d, m_YOffset:%d",
+-          localDisplayMode, remoteDisplayMode,
++          __FUNCTION__,localDisplayMode, remoteDisplayMode,
+           m_localWidth, m_localHeight,
+           m_wfdWidth, m_wfdHeight,
+           m_widthRatio, m_heightRatio,
+-          m_XOffset, m_YOffset);
+-#endif    
++          m_XOffset, m_YOffset);  
+ }
+ 
+ bool UibcServerHandler::transTouchToSourcePosition(short* x, short* y) {
+@@ -690,14 +725,14 @@ status_t UibcServerHandler::sendMultipleTouchEvent(WFD_UIBC_GENERIC_BODY_MOUSE_T
+                 y = ntohs(pBody->coordinates[0].y);
+                 if (m_mouseCursorSupported) {
+                     if (m_XCurCoord == -1 && m_YCurCoord == -1) {
+-                       /* if (m_Orientation == DISPLAY_ORIENTATION_90 ||
++                        if (m_Orientation == DISPLAY_ORIENTATION_90 ||
+                             m_Orientation == DISPLAY_ORIENTATION_270) {
+                             m_XCurCoord = m_wfdHeight / 2;
+                             m_YCurCoord = m_wfdWidth / 2;
+                         } else {
+                             m_XCurCoord = m_wfdWidth / 2;
+                             m_YCurCoord = m_wfdHeight / 2;
+-                        }*/
++                        }
+                     }
+                     deltaX = (x - m_XCurCoord);
+                     deltaY = (y - m_YCurCoord);
+-- 
+2.25.1
+

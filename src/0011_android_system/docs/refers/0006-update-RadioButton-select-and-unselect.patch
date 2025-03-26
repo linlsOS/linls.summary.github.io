@@ -1,0 +1,446 @@
+From 8d9159620444cb9da2a25bf61969c3df54dccb51 Mon Sep 17 00:00:00 2001
+From: linliangsong <linliangsong@boe.com.cn>
+Date: Thu, 11 Apr 2024 15:13:34 +0800
+Subject: [PATCH] update RadioButton select and unselect
+
+---
+ .../ui/details/HdmiBootSourceSelectPop.java   |  26 +++-
+ .../ui/details/HdmiSourceSelectPop.java       |  26 +++-
+ .../ui/details/VoiceArcModePop.java           | 123 +++++++++++++++---
+ .../ui/details/VoiceOutputPop.java            |  29 +++--
+ .../tvotssettings/widget/MenuPopButton.java   |  22 +++-
+ 5 files changed, 178 insertions(+), 48 deletions(-)
+
+diff --git a/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiBootSourceSelectPop.java b/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiBootSourceSelectPop.java
+index 510406f..3968e06 100755
+--- a/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiBootSourceSelectPop.java
++++ b/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiBootSourceSelectPop.java
+@@ -39,10 +39,8 @@ public class HdmiBootSourceSelectPop extends BasePopup {
+                 int currentBootSourceID = SourceManagerInterface.getBootSource();
+                 if(currentBootSourceID != SourceManagerInterface.SOURCE_AUTO) {
+                     SourceManagerInterface.setBootSource(SourceManagerInterface.SOURCE_AUTO);
+-                }
+-                boolean buttonChecked = mHdmilocalButton.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mHdmihdimButton.setRadioButtonChecked(!buttonChecked);
++                    mHdmilocalButton.setRadioButtonChecked(true,true);
++                    mHdmihdimButton.setRadioButtonChecked(false,false);
+                 }
+             }
+         });
+@@ -53,10 +51,22 @@ public class HdmiBootSourceSelectPop extends BasePopup {
+                 int currentBootSourceID = SourceManagerInterface.getBootSource();
+                 if(currentBootSourceID != SourceManagerInterface.SOURCE_HDMI2) {
+                     SourceManagerInterface.setBootSource(SourceManagerInterface.SOURCE_HDMI2);
++                    mHdmilocalButton.setRadioButtonChecked(false,false);
++                    mHdmihdimButton.setRadioButtonChecked(true,true);
+                 }
+-                boolean buttonChecked = mHdmihdimButton.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mHdmilocalButton.setRadioButtonChecked(!buttonChecked);
++            }
++        });
++
++        mHdmihdimButton.setOnFocusChangeListener(new View.OnFocusChangeListener() {
++            @Override
++            public void onFocusChange(View view, boolean bvalue) {
++                int currentBootSourceID = SourceManagerInterface.getBootSource();
++                if(currentBootSourceID != SourceManagerInterface.SOURCE_HDMI2){
++                    mHdmilocalButton.setRadioButtonChecked(!bvalue,true);
++                    mHdmihdimButton.setRadioButtonChecked(bvalue,false);
++                }else{
++                    mHdmilocalButton.setRadioButtonChecked(!bvalue,false);
++                    mHdmihdimButton.setRadioButtonChecked(bvalue,true);
+                 }
+             }
+         });
+@@ -69,8 +79,10 @@ public class HdmiBootSourceSelectPop extends BasePopup {
+         int currentBootSource = SourceManagerInterface.getBootSource();
+         if(currentBootSource != SourceManagerInterface.SOURCE_HDMI2){
+             mHdmilocalButton.requestFocus();
++            mHdmilocalButton.setRadioButtonChecked(true, true);
+         }else{
+             mHdmihdimButton.requestFocus();
++            mHdmihdimButton.setRadioButtonChecked(true, true);
+         }
+     }
+ 
+diff --git a/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiSourceSelectPop.java b/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiSourceSelectPop.java
+index ebbb0bc..09bf720 100755
+--- a/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiSourceSelectPop.java
++++ b/app/src/main/java/com/ots/tvotssettings/ui/details/HdmiSourceSelectPop.java
+@@ -43,14 +43,12 @@ public class HdmiSourceSelectPop extends BasePopup {
+         mHdmilocalButton.setOnClickListener(new View.OnClickListener() {
+             @Override
+             public void onClick(View view) {
+-                boolean buttonChecked = mHdmilocalButton.getRadioButonIsChecked();
+                 int currentSourceID = SourceManagerInterface.getCurSourceId();
+                 if(currentSourceID != SourceManagerInterface.SOURCE_BUTT) {
+                     SourceManagerInterface.selectSource(SourceManagerInterface.SOURCE_BUTT);
+                     chooseSource(SourceManagerInterface.SOURCE_BUTT);
+-                }
+-                if(buttonChecked){
+-                    mHdmihdimButton.setRadioButtonChecked(!buttonChecked);
++                    mHdmilocalButton.setRadioButtonChecked(true,true);
++                    mHdmihdimButton.setRadioButtonChecked(false,false);
+                 }
+             }
+         });
+@@ -62,10 +60,22 @@ public class HdmiSourceSelectPop extends BasePopup {
+                 if(currentSourceID != SourceManagerInterface.SOURCE_HDMI2) {
+                     SourceManagerInterface.selectSource(SourceManagerInterface.SOURCE_HDMI2);
+                     chooseSource(SourceManagerInterface.SOURCE_HDMI2);
++                    mHdmilocalButton.setRadioButtonChecked(false,false);
++                    mHdmihdimButton.setRadioButtonChecked(true,true);
+                 }
+-                boolean buttonChecked = mHdmihdimButton.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mHdmilocalButton.setRadioButtonChecked(!buttonChecked);
++            }
++        });
++
++        mHdmihdimButton.setOnFocusChangeListener(new View.OnFocusChangeListener() {
++            @Override
++            public void onFocusChange(View view, boolean bvalue) {
++                int currentBootSourceID = SourceManagerInterface.getBootSource();
++                if(currentBootSourceID != SourceManagerInterface.SOURCE_HDMI2){
++                    mHdmilocalButton.setRadioButtonChecked(!bvalue,true);
++                    mHdmihdimButton.setRadioButtonChecked(bvalue,false);
++                }else{
++                    mHdmilocalButton.setRadioButtonChecked(!bvalue,false);
++                    mHdmihdimButton.setRadioButtonChecked(bvalue,true);
+                 }
+             }
+         });
+@@ -76,8 +86,10 @@ public class HdmiSourceSelectPop extends BasePopup {
+         int current = SourceManagerInterface.getCurSourceId();
+         if(current != SourceManagerInterface.SOURCE_HDMI2){
+             mHdmilocalButton.requestFocus();
++            mHdmilocalButton.setRadioButtonChecked(true, true);
+         }else{
+             mHdmihdimButton.requestFocus();
++            mHdmihdimButton.setRadioButtonChecked(true, true);
+         }
+     }
+ 
+diff --git a/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceArcModePop.java b/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceArcModePop.java
+index fbfc843..7ff7a00 100755
+--- a/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceArcModePop.java
++++ b/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceArcModePop.java
+@@ -10,11 +10,12 @@ import androidx.annotation.NonNull;
+ import com.ots.tvotssettings.R;
+ import com.ots.tvotssettings.base.BasePopup;
+ import com.ots.tvotssettings.functioninterface.audio.AudioManagerInterface;
++import com.ots.tvotssettings.functioninterface.source.SourceManagerInterface;
+ import com.ots.tvotssettings.ui.VoiceFragment;
+ import com.ots.tvotssettings.widget.MenuPopButton;
+ 
+ public class VoiceArcModePop extends BasePopup {
+-    private final static String TAG = VoiceArcModePop.class.getSimpleName();
++
+     public static final int DEVICE_OUT_HDMI_ARC = 0x40000;
+     View rootview;
+     MenuPopButton mVoiceArcPcm, mVoiceArcRaw, mVoiceArcLegacy, mVoiceArcAuto;
+@@ -40,55 +41,131 @@ public class VoiceArcModePop extends BasePopup {
+         mVoiceArcPcm.setOnClickListener(new View.OnClickListener() {
+             @Override
+             public void onClick(View view) {
+-                boolean buttonChecked = mVoiceArcPcm.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mVoiceArcPcm.setRadioButtonChecked(!buttonChecked);
+-                }
+-                int outputMode =  AudioManagerInterface.getSpeakerOutput();
++                int outputMode =  AudioManagerInterface.getARCMode();
+                 if(outputMode != AudioManagerInterface.ARC_PCM){
+                     AudioManagerInterface.setARCMode(AudioManagerInterface.ARC_PCM);
++                    mVoiceArcPcm.setRadioButtonChecked(true,true);
++                    mVoiceArcRaw.setRadioButtonChecked(false,false);
++                    mVoiceArcLegacy.setRadioButtonChecked(false,false);
++                    mVoiceArcAuto.setRadioButtonChecked(false,false);
+                 }
+             }
+         });
+         mVoiceArcRaw.setOnClickListener(new View.OnClickListener() {
+             @Override
+             public void onClick(View view) {
+-                boolean buttonChecked = mVoiceArcRaw.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mVoiceArcRaw.setRadioButtonChecked(!buttonChecked);
+-                }
+-                int outputMode =  AudioManagerInterface.getSpeakerOutput();
++                int outputMode =  AudioManagerInterface.getARCMode();
+                 if(outputMode != AudioManagerInterface.ARC_RAW){
+                     AudioManagerInterface.setARCMode(AudioManagerInterface.ARC_RAW);
++                    mVoiceArcPcm.setRadioButtonChecked(false,false);
++                    mVoiceArcRaw.setRadioButtonChecked(true,true);
++                    mVoiceArcLegacy.setRadioButtonChecked(false,false);
++                    mVoiceArcAuto.setRadioButtonChecked(false,false);
+                 }
+             }
+         });
+         mVoiceArcLegacy.setOnClickListener(new View.OnClickListener() {
+             @Override
+             public void onClick(View view) {
+-                boolean buttonChecked = mVoiceArcLegacy.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mVoiceArcLegacy.setRadioButtonChecked(!buttonChecked);
+-                }
+-                int outputMode =  AudioManagerInterface.getSpeakerOutput();
++                int outputMode =  AudioManagerInterface.getARCMode();
+                 if(outputMode != AudioManagerInterface.ARC_LEGACY){
+                     AudioManagerInterface.setARCMode(AudioManagerInterface.ARC_LEGACY);
++                    mVoiceArcPcm.setRadioButtonChecked(false,false);
++                    mVoiceArcRaw.setRadioButtonChecked(false,false);
++                    mVoiceArcLegacy.setRadioButtonChecked(true,true);
++                    mVoiceArcAuto.setRadioButtonChecked(false,false);
+                 }
+             }
+         });
+         mVoiceArcAuto.setOnClickListener(new View.OnClickListener() {
+             @Override
+             public void onClick(View view) {
+-                boolean buttonChecked = mVoiceArcAuto.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mVoiceArcAuto.setRadioButtonChecked(!buttonChecked);
+-                }
+-                int outputMode =  AudioManagerInterface.getSpeakerOutput();
++                int outputMode =  AudioManagerInterface.getARCMode();
+                 if(outputMode != AudioManagerInterface.ARC_AUTO){
+                     AudioManagerInterface.setARCMode(AudioManagerInterface.ARC_AUTO);
++                    mVoiceArcPcm.setRadioButtonChecked(false,false);
++                    mVoiceArcRaw.setRadioButtonChecked(false,false);
++                    mVoiceArcLegacy.setRadioButtonChecked(false,false);
++                    mVoiceArcAuto.setRadioButtonChecked(true,true);
+                 }
+             }
+         });
++
++        mVoiceArcPcm.setOnFocusChangeListener(new View.OnFocusChangeListener() {
++            @Override
++            public void onFocusChange(View view, boolean bvalue) {
++                updateRadioButton(AudioManagerInterface.ARC_PCM, bvalue);
++            }
++        });
++
++        mVoiceArcRaw.setOnFocusChangeListener(new View.OnFocusChangeListener() {
++            @Override
++            public void onFocusChange(View view, boolean bvalue) {
++                updateRadioButton(AudioManagerInterface.ARC_RAW, bvalue);
++            }
++        });
++
++        mVoiceArcLegacy.setOnFocusChangeListener(new View.OnFocusChangeListener() {
++            @Override
++            public void onFocusChange(View view, boolean bvalue) {
++                updateRadioButton(AudioManagerInterface.ARC_LEGACY, bvalue);
++            }
++        });
++
++        mVoiceArcAuto.setOnFocusChangeListener(new View.OnFocusChangeListener() {
++            @Override
++            public void onFocusChange(View view, boolean bvalue) {
++                updateRadioButton(AudioManagerInterface.ARC_AUTO, bvalue);
++            }
++        });
++
++
++    }
++
++    private void updateRadioButton(int position, boolean bvalue){
++        int outputMode =  AudioManagerInterface.getARCMode();
++        boolean bpcm = false, braw = false, blgacy =  false , bauto = false;
++        boolean bvpcm = false, bvraw = false, bvlgacy =  false , bvauto = false;
++
++        switch (outputMode){
++            case AudioManagerInterface.ARC_PCM:
++                bpcm = true;
++                break;
++            case AudioManagerInterface.ARC_RAW:
++                braw = true;
++                break;
++            case AudioManagerInterface.ARC_LEGACY:
++                blgacy = true;
++                break;
++            case AudioManagerInterface.ARC_AUTO:
++                bauto = true;
++                break;
++        }
++
++        switch (position){
++            case AudioManagerInterface.ARC_PCM:
++                bvpcm = bvalue;
++                bvraw = bvlgacy = bvauto = !bvpcm;
++                break;
++            case AudioManagerInterface.ARC_RAW:
++                bvraw = bvalue;
++                bvpcm = bvlgacy = bvauto = !bvraw;
++                break;
++            case AudioManagerInterface.ARC_LEGACY:
++                bvlgacy = bvalue;
++                bvpcm = bvraw = bvauto = !bvlgacy;
++                break;
++            case AudioManagerInterface.ARC_AUTO:
++                bvauto = bvalue;
++                bvpcm = bvraw = bvlgacy = !bvauto;
++                break;
++        }
++
++        mVoiceArcPcm.setRadioButtonChecked(bvpcm, bpcm);
++        mVoiceArcRaw.setRadioButtonChecked(bvraw, braw);
++        mVoiceArcLegacy.setRadioButtonChecked(bvlgacy, blgacy);
++        mVoiceArcAuto.setRadioButtonChecked(bvauto, bauto);
++
+     }
+ 
+     @Override
+@@ -97,15 +174,19 @@ public class VoiceArcModePop extends BasePopup {
+         switch (outputMode){
+             case AudioManagerInterface.ARC_PCM:
+                 mVoiceArcPcm.requestFocus();
++                mVoiceArcPcm.setRadioButtonChecked(true,true);
+                 break;
+             case AudioManagerInterface.ARC_RAW:
+                 mVoiceArcRaw.requestFocus();
++                mVoiceArcRaw.setRadioButtonChecked(true,true);
+                 break;
+             case AudioManagerInterface.ARC_LEGACY:
+                 mVoiceArcLegacy.requestFocus();
++                mVoiceArcLegacy.setRadioButtonChecked(true,true);
+                 break;
+             case AudioManagerInterface.ARC_AUTO:
+                 mVoiceArcAuto.requestFocus();
++                mVoiceArcAuto.setRadioButtonChecked(true,true);
+                 break;
+         }
+ 
+diff --git a/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceOutputPop.java b/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceOutputPop.java
+index 104d617..6979dab 100755
+--- a/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceOutputPop.java
++++ b/app/src/main/java/com/ots/tvotssettings/ui/details/VoiceOutputPop.java
+@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
+ import com.ots.tvotssettings.R;
+ import com.ots.tvotssettings.base.BasePopup;
+ import com.ots.tvotssettings.functioninterface.audio.AudioManagerInterface;
++import com.ots.tvotssettings.functioninterface.source.SourceManagerInterface;
+ import com.ots.tvotssettings.widget.MenuPopButton;
+ 
+ public class VoiceOutputPop extends BasePopup {
+@@ -40,10 +41,8 @@ public class VoiceOutputPop extends BasePopup {
+                 int outputMode =  AudioManagerInterface.getMediaOutDevice(mContext);
+                 if(outputMode !=  AudioManagerInterface.DEVICE_OUT_SPEAKER){
+                     AudioManagerInterface.setMediaOutDevice(AudioManagerInterface.DEVICE_OUT_SPEAKER, mContext);
+-                }
+-                boolean buttonChecked = mVoiceProjectorButton.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mVoiceHdmiButton.setRadioButtonChecked(!buttonChecked);
++                    mVoiceProjectorButton.setRadioButtonChecked(true,true);
++                    mVoiceHdmiButton.setRadioButtonChecked(false,false);
+                 }
+             }
+         });
+@@ -53,10 +52,8 @@ public class VoiceOutputPop extends BasePopup {
+                 int outputMode =  AudioManagerInterface.getMediaOutDevice(mContext);
+                 if(outputMode !=  AudioManagerInterface.DEVICE_OUT_HDMI_ARC){
+                     AudioManagerInterface.setMediaOutDevice(AudioManagerInterface.DEVICE_OUT_HDMI_ARC, mContext);
+-                }
+-                boolean buttonChecked = mVoiceHdmiButton.getRadioButonIsChecked();
+-                if(buttonChecked){
+-                    mVoiceProjectorButton.setRadioButtonChecked(!buttonChecked);
++                    mVoiceProjectorButton.setRadioButtonChecked(false,false);
++                    mVoiceHdmiButton.setRadioButtonChecked(true,true);
+                 }
+                 boolean arcenable = AudioManagerInterface.isARCEnable();
+                 if(!arcenable){
+@@ -65,6 +62,20 @@ public class VoiceOutputPop extends BasePopup {
+             }
+         });
+ 
++        mVoiceProjectorButton.setOnFocusChangeListener(new View.OnFocusChangeListener() {
++            @Override
++            public void onFocusChange(View view, boolean bvalue) {
++                int outputMode =  AudioManagerInterface.getMediaOutDevice(mContext);
++                if(outputMode ==  AudioManagerInterface.DEVICE_OUT_SPEAKER){
++                    mVoiceProjectorButton.setRadioButtonChecked(bvalue,true);
++                    mVoiceHdmiButton.setRadioButtonChecked(!bvalue,false);
++                }else{
++                    mVoiceProjectorButton.setRadioButtonChecked(bvalue,false);
++                    mVoiceHdmiButton.setRadioButtonChecked(!bvalue,true);
++                }
++            }
++        });
++
+     }
+ 
+     @Override
+@@ -73,8 +84,10 @@ public class VoiceOutputPop extends BasePopup {
+         Log.d(TAG, "outputMode = " + outputMode);
+         if(outputMode == AudioManagerInterface.DEVICE_OUT_SPEAKER){
+             mVoiceProjectorButton.requestFocus();
++            mVoiceProjectorButton.setRadioButtonChecked(true,true);
+         }else{
+             mVoiceHdmiButton.requestFocus();
++            mVoiceHdmiButton.setRadioButtonChecked(true,true);
+         }
+ 
+     }
+diff --git a/app/src/main/java/com/ots/tvotssettings/widget/MenuPopButton.java b/app/src/main/java/com/ots/tvotssettings/widget/MenuPopButton.java
+index 9f85add..612a8b2 100755
+--- a/app/src/main/java/com/ots/tvotssettings/widget/MenuPopButton.java
++++ b/app/src/main/java/com/ots/tvotssettings/widget/MenuPopButton.java
+@@ -1,9 +1,11 @@
+ package com.ots.tvotssettings.widget;
+ 
+ import android.content.Context;
++import android.content.res.ColorStateList;
+ import android.content.res.TypedArray;
+ import android.graphics.Color;
+ import android.util.AttributeSet;
++import android.util.Log;
+ import android.view.LayoutInflater;
+ import android.view.View;
+ import android.widget.LinearLayout;
+@@ -15,7 +17,6 @@ import androidx.annotation.Nullable;
+ import com.ots.tvotssettings.R;
+ 
+ public class MenuPopButton extends LinearLayout {
+-
+     int fouce_text_color;
+     int fouce_no_text_color;
+     float text_size;
+@@ -58,18 +59,29 @@ public class MenuPopButton extends LinearLayout {
+         setOnFocusChangeListener((view1, b) -> {
+             if (b) {
+                 tvTetle.setTextColor(fouce_text_color);
+-                tvRadioButton.setChecked(true);
++                //tvRadioButton.setChecked(true);
+             } else {
+                 tvTetle.setTextColor(fouce_no_text_color);
+-                tvRadioButton.setChecked(false);
++                //tvRadioButton.setChecked(false);
+             }
+ 
+         });
+ 
+     }
+ 
+-    public void setRadioButtonChecked(boolean visable){
+-        tvRadioButton.setChecked(visable);
++    public void setRadioButtonChecked(boolean visable, boolean bfuntion){
++        //focus on check radiobutton show white
++        if(visable && bfuntion){
++            tvRadioButton.setChecked(true);
++            tvRadioButton.setButtonTintList(ColorStateList.valueOf(getResources().getColor(R.color.white)));
++        }
++        else if((visable == false) && bfuntion){
++            tvRadioButton.setChecked(true);
++            tvRadioButton.setButtonTintList(ColorStateList.valueOf(getResources().getColor(R.color.blue_date_picker)));
++        }else{
++            tvRadioButton.setChecked(false);
++            tvRadioButton.setButtonTintList(ColorStateList.valueOf(getResources().getColor(R.color.gray999)));
++        }
+     }
+ 
+     public void setPopButtonfocuse(){
+-- 
+2.25.1
+

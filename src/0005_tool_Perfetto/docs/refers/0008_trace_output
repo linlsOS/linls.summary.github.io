@@ -1,0 +1,42 @@
+capturing trace... done
+TRACE:
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 25/25   #P:4
+# enabled events:
+# kernel time now: 59475.692765
+# UTC time:	2023-04-06 19:35:43.247353
+# android time:	2023-04-07 03:35:43.247353
+#
+#                                      _-----=> irqs-off
+#                                     / _----=> need-resched
+#                                    | / _---=> hardirq/softirq
+#                                    || / _--=> preempt-depth
+#                                    ||| /     delay
+#           TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |        |      |   ||||       |         |
+          atrace-17291 (17291) [001] .... 77822.021261: tracing_mark_write: trace_event_clock_sync: parent_ts=59460.675781
+          atrace-17291 (17291) [001] .... 77822.021277: tracing_mark_write: trace_event_clock_sync: realtime_ts=1680809728245
+     nativetrace-17267 (17267) [000] .... 77822.269101: tracing_mark_write: E|17267
+     nativetrace-17267 (17267) [000] .... 77823.269772: tracing_mark_write: B|17267|native trace
+     nativetrace-17267 (17267) [000] .... 77824.270452: tracing_mark_write: E|17267
+     nativetrace-17267 (17267) [000] .... 77825.271154: tracing_mark_write: B|17267|native trace
+     nativetrace-17267 (17267) [000] .... 77826.271835: tracing_mark_write: E|17267
+   mtkfusionrild-1132  ( 1132) [000] .... 77826.471031: tracing_mark_write: B|1132|HIDL::IRadio::getModemActivityInfo::server
+   mtkfusionrild-1132  ( 1132) [000] .... 77826.471281: tracing_mark_write: E|1132
+ Ril Proxy Main -1142  ( 1132) [001] .... 77826.495522: tracing_mark_write: B|1132|HIDL::IRadioResponse::getModemActivityInfoResponse::client
+ Ril Proxy Main -1142  ( 1132) [001] .... 77826.495814: tracing_mark_write: E|1132
+     nativetrace-17267 (17267) [000] .... 77827.272521: tracing_mark_write: B|17267|native trace
+     nativetrace-17267 (17267) [000] .... 77828.273198: tracing_mark_write: E|17267
+     nativetrace-17267 (17267) [000] .... 77829.273893: tracing_mark_write: B|17267|native trace
+     kworker/0:0-17068 (17068) [000] ...1 77829.597493: tracing_mark_write: 17068 [cpu_loading] loading:1 mask_loading:2 curr_cpu_loading:0 previous state:3
+     kworker/0:0-17068 (17068) [000] ...1 77829.598223: tracing_mark_write: 17068 [cpu_loading] sent uevent success:lower=2
+     nativetrace-17267 (17267) [000] .... 77830.274574: tracing_mark_write: E|17267
+     nativetrace-17267 (17267) [000] .... 77831.275264: tracing_mark_write: B|17267|native trace
+     nativetrace-17267 (17267) [000] .... 77832.275943: tracing_mark_write: E|17267
+ Ril Proxy Main -1142  ( 1132) [002] .... 77833.250364: tracing_mark_write: B|1132|HIDL::IRadioIndication::currentSignalStrength_1_6::client
+ Ril Proxy Main -1142  ( 1132) [002] .... 77833.250582: tracing_mark_write: E|1132
+     nativetrace-17267 (17267) [000] .... 77833.276633: tracing_mark_write: B|17267|native trace
+     nativetrace-17267 (17267) [000] .... 77834.277313: tracing_mark_write: E|17267
+     nativetrace-17267 (17267) [000] .... 77835.277999: tracing_mark_write: B|17267|native trace
+     nativetrace-17267 (17267) [000] .... 77836.278685: tracing_mark_write: E|17267

@@ -1,0 +1,3898 @@
+From 48be62150ee43149a7c0d8ccc1fceed3297db447 Mon Sep 17 00:00:00 2001
+From: linliangsong <linliangsong@boe.com.cn>
+Date: Fri, 10 Jan 2025 18:48:59 +0800
+Subject: [PATCH 5/7] wifidisplay support uibc protocol
+
+---
+ .../apps/WifiDisplay/jni/ANetworkSession.cpp  | 296 ++++++-
+ .../common/apps/WifiDisplay/jni/Android.mk    |  11 +-
+ .../apps/WifiDisplay/jni/Parameters.cpp       |  92 ++
+ .../WifiDisplay/jni/UibcClientHandler.cpp     |  68 ++
+ .../apps/WifiDisplay/jni/UibcHandler.cpp      | 228 +++++
+ .../apps/WifiDisplay/jni/UibcMessage.cpp      | 604 +++++++++++++
+ .../WifiDisplay/jni/UibcServerHandler.cpp     | 817 ++++++++++++++++++
+ .../apps/WifiDisplay/jni/VideoFormats.cpp     | 550 ++++++++++++
+ .../apps/WifiDisplay/jni/WifiDisplaySink.cpp  | 155 +++-
+ .../WifiDisplay/jni/include/ANetworkSession.h |  28 +
+ .../apps/WifiDisplay/jni/include/Parameters.h |  41 +
+ .../jni/include/UibcClientHandler.h           |  47 +
+ .../WifiDisplay/jni/include/UibcHandler.h     |  97 +++
+ .../WifiDisplay/jni/include/UibcMessage.h     |  82 ++
+ .../jni/include/UibcServerHandler.h           |  82 ++
+ .../WifiDisplay/jni/include/VideoFormats.h    | 125 +++
+ .../WifiDisplay/jni/include/WifiDisplaySink.h |   9 +-
+ .../jni/include/WifiDisplayUibcType.h         | 148 ++++
+ 18 files changed, 3469 insertions(+), 11 deletions(-)
+ mode change 100755 => 100644 vendor/rockchip/common/apps/WifiDisplay/jni/ANetworkSession.cpp
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/Parameters.cpp
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/UibcClientHandler.cpp
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/UibcHandler.cpp
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/VideoFormats.cpp
+ mode change 100755 => 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/ANetworkSession.h
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/Parameters.h
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcClientHandler.h
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcHandler.h
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcMessage.h
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcServerHandler.h
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/VideoFormats.h
+ create mode 100644 vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplayUibcType.h
+
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/ANetworkSession.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/ANetworkSession.cpp
+old mode 100755
+new mode 100644
+index 7664b66aff..f8c75d499e
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/ANetworkSession.cpp
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/ANetworkSession.cpp
+@@ -36,11 +36,14 @@
+ #include "include/ByteUtils.h"
+ #include <media/stagefright/foundation/hexdump.h>
+ 
++#include "include/WifiDisplayUibcType.h"
+ namespace android {
+ 
+ static const size_t kMaxUDPSize = 1500;
+ static const int32_t kMaxUDPRetries = 200;
+ 
++#define THRESHOLD_BUFFER_SIZE   50
++#define WARN_BUFFER_SIZE        400
+ struct ANetworkSession::NetworkThread : public Thread {
+     explicit NetworkThread(ANetworkSession *session);
+ 
+@@ -68,6 +71,15 @@ struct ANetworkSession::Session : public RefBase {
+         LISTENING_RTSP,
+         LISTENING_TCP_DGRAMS,
+         DATAGRAM,
++        LISTENING_TCP_TEXT,
++        LISTENING_TCP_UIBC,
++        SOCKET_ERROR,
++    };
++    enum TCPType {
++        TCP_DATAGRAM = 0,
++        TCP_TEXTDATA,
++        TCP_UIBC,
++        TCP_BINDATA     // WFD_HDCP_TX_SUPPORT
+     };
+ 
+     Session(int32_t sessionID,
+@@ -95,6 +107,9 @@ struct ANetworkSession::Session : public RefBase {
+ 
+     status_t switchToWebSocketMode();
+ 
++    void setTCPConnectionType(int yesno);
++    int  getTCPConnectionType() const;
++    status_t writeDirectRequest(const void *data, ssize_t size);
+ protected:
+     virtual ~Session();
+ 
+@@ -111,6 +126,7 @@ private:
+     int32_t mSessionID;
+     State mState;
+     Mode mMode;
++    int mTcpType;
+     int mSocket;
+     sp<AMessage> mNotify;
+     bool mSawReceiveFailure, mSawSendFailure;
+@@ -121,6 +137,7 @@ private:
+     AString mInBuffer;
+ 
+     int64_t mLastStallReportUs;
++    int     mThresholdCount;
+ 
+     void notifyError(bool send, status_t err, const char *detail);
+     void notify(NotificationReason reason);
+@@ -154,6 +171,7 @@ ANetworkSession::Session::Session(
+     : mSessionID(sessionID),
+       mState(state),
+       mMode(MODE_DATAGRAM),
++      mTcpType(TCP_DATAGRAM),     
+       mSocket(s),
+       mNotify(notify),
+       mSawReceiveFailure(false),
+@@ -200,6 +218,7 @@ ANetworkSession::Session::Session(
+         msg->setInt32("client-port", ntohs(remoteAddr.sin_port));
+         msg->post();
+     }
++        mThresholdCount = THRESHOLD_BUFFER_SIZE;
+ }
+ 
+ ANetworkSession::Session::~Session() {
+@@ -325,7 +344,7 @@ status_t ANetworkSession::Session::readMore() {
+         return err;
+     }
+ 
+-    char tmp[512];
++    char tmp[530]; // for AKE_Send_Cert len = 524 bytes + AKE_Receiver_info  = 6 bytes
+     ssize_t n;
+     do {
+         n = recv(mSocket, tmp, sizeof(tmp), 0);
+@@ -349,6 +368,7 @@ status_t ANetworkSession::Session::readMore() {
+     if (mMode == MODE_DATAGRAM) {
+         // TCP stream carrying 16-bit length-prefixed datagrams.
+ 
++        if(mTcpType == Session::TCP_DATAGRAM){
+         while (mInBuffer.size() >= 2) {
+             size_t packetSize = U16_AT((const uint8_t *)mInBuffer.c_str());
+ 
+@@ -370,6 +390,62 @@ status_t ANetworkSession::Session::readMore() {
+ 
+             mInBuffer.erase(0, packetSize + 2);
+         }
++        }
++        else if(mTcpType == Session::TCP_BINDATA)
++        {
++            sp<ABuffer> packet = new ABuffer(mInBuffer.size());
++            memcpy(packet->data(), mInBuffer.c_str(), mInBuffer.size());
++        
++            sp<AMessage> notify = mNotify->dup();
++            notify->setInt32("sessionID", mSessionID);
++            notify->setInt32("reason", kWhatBinaryData);
++            notify->setBuffer("data", packet);
++            notify->post();
++            mInBuffer.clear();
++        }
++        else if(mTcpType == Session::TCP_TEXTDATA){
++            sp<AMessage> notify = mNotify->dup();
++
++            notify->setInt32("sessionID", mSessionID);
++            notify->setInt32("reason", kWhatTextData);
++            notify->setString("data", mInBuffer.c_str());
++            notify->post();
++
++            mInBuffer.clear();
++        }else if(mTcpType == Session::TCP_UIBC){
++            
++            ALOGD("Get A TCP_UIBC --------- Total buffer size=%d",mInBuffer.size());
++            while (mInBuffer.size() >= 4) {
++                const char* pBuffer = mInBuffer.c_str();
++                ALOGD("Buffer:0x%02x:0x%02x:0x%02x:0x%02x", pBuffer[0], pBuffer[1], pBuffer[2], pBuffer[3]);
++
++                size_t packetSize = (pBuffer[2]<<16) + pBuffer[3];
++                ALOGD("Read packet size:%d", packetSize);
++
++                if(packetSize<=0 ){
++                    ALOGD("packet size error :%d", packetSize);  
++                    mInBuffer.clear();
++                    break;
++                }
++                if (mInBuffer.size() < packetSize) {
++                    break;
++                }else{
++
++                    sp<ABuffer> packet = new ABuffer(packetSize);
++                    memcpy(packet->data(), mInBuffer.c_str(), packetSize);
++
++                    sp<AMessage> notify = mNotify->dup();
++                    notify->setInt32("sessionID", mSessionID);
++                    notify->setInt32("reason", kWhatUibcData);
++                    notify->setBuffer("data", packet);
++                    notify->post();
++
++                    mInBuffer.erase(0, packetSize);
++                    ALOGD("buffer size:%d", mInBuffer.size());
++                }
++            }
++            ALOGD("Get A TCP_UIBC END---------");
++        }
+     } else if (mMode == MODE_RTSP) {
+         for (;;) {
+             size_t length;
+@@ -692,12 +768,18 @@ status_t ANetworkSession::Session::sendRequest(
+     sp<ABuffer> buffer;
+ 
+     if (mState == CONNECTED && mMode == MODE_DATAGRAM) {
++        if (mTcpType == TCP_DATAGRAM){
+         CHECK_LE(size, 65535);
+ 
+         buffer = new ABuffer(size + 2);
+         buffer->data()[0] = size >> 8;
+         buffer->data()[1] = size & 0xff;
+         memcpy(buffer->data() + 2, data, size);
++        }
++        else if (mTcpType == TCP_BINDATA) {
++            buffer = new ABuffer(size);
++            memcpy(buffer->data(), data, size);
++        }
+     } else if (mState == CONNECTED && mMode == MODE_WEBSOCKET) {
+         static const bool kUseMask = false;  // Chromium doesn't like it.
+ 
+@@ -766,6 +848,92 @@ status_t ANetworkSession::Session::sendRequest(
+     return OK;
+ }
+ 
++status_t ANetworkSession::Session::writeDirectRequest(const void *data_in, ssize_t size) {
++    CHECK(mState == CONNECTED || mState == DATAGRAM || mState == SOCKET_ERROR);
++    
++    if (mState == DATAGRAM || mState == CONNECTED) {
++        CHECK_GE(size, 0);
++        
++        ssize_t n;
++        status_t err = OK;
++        int    retry = 0;
++
++        uint8_t *data = (uint8_t*) data_in;
++        /*
++        if (data[0] == 0x80 && (data[1] & 0x7f) == 33) {
++            int64_t nowUs = ALooper::GetNowUs();
++
++            uint32_t prevRtpTime = U32_AT(&data[4]);
++
++            // 90kHz time scale
++            uint32_t rtpTime = (nowUs * 9ll) / 100ll;
++
++            //ALOGV("correcting rtpTime by %.0f ms", diffTime / 90.0);
++
++            data[4] = rtpTime >> 24;
++            data[5] = (rtpTime >> 16) & 0xff;
++            data[6] = (rtpTime >> 8) & 0xff;
++            data[7] = rtpTime & 0xff;
++        }
++        */
++
++        int numBytesQueued;
++        int res = ioctl(mSocket, SIOCOUTQ, &numBytesQueued);
++
++        
++        if (res == 0 && numBytesQueued > mThresholdCount * 1024) {
++                if (numBytesQueued > WARN_BUFFER_SIZE * 1024) {
++                    ALOGW("!!! numBytesQueued = %d", numBytesQueued);
++                }
++        
++                int64_t nowUs = ALooper::GetNowUs();
++        
++                if (mLastStallReportUs < 0ll
++                        || nowUs > mLastStallReportUs + 100000ll) {
++                    sp<AMessage> msg = mNotify->dup();
++                    msg->setInt32("sessionID", mSessionID);
++                    msg->setInt32("reason", kWhatNetworkStall);
++                    msg->setSize("numBytesQueued", numBytesQueued);
++                    msg->post();
++        
++                    mLastStallReportUs = nowUs;
++                }
++        }
++        
++        do {            
++            n = send(mSocket, data, size, 0);
++            retry++;
++            if((retry % 10) == 0){
++                ALOGI("retry:%d", retry);
++                if(retry > 10 * 1000){
++                    ALOGE("Fail to send");
++                    break;
++                }
++                usleep(10 * 1000);
++            }
++        } while (n < 0 && (errno == EINTR || errno == EAGAIN || errno == ECONNREFUSED));
++                
++        if (n < 0) {
++            err = -errno;
++        } else if (n == 0) {
++            err = -ECONNRESET;
++        }
++
++        if (err != OK) {
++            if(mState == DATAGRAM){
++                notifyError(true /* send */, err, "Send datagram failed.");
++            }else if(mState == CONNECTED){
++                notifyError(true /* send */, err, "Send failed.");
++            }
++            mState = SOCKET_ERROR;
++            mSawSendFailure = true;
++        }                
++
++        return err;
++    }    
++
++    return OK;
++}
+ void ANetworkSession::Session::notifyError(
+         bool send, status_t err, const char *detail) {
+     sp<AMessage> msg = mNotify->dup();
+@@ -887,6 +1055,24 @@ status_t ANetworkSession::createUDPSession(
+             notify,
+             sessionID);
+ }
++status_t ANetworkSession::createTCPBinaryDataSessionActive(
++        unsigned localPort,
++        const char *remoteHost,
++        unsigned remotePort,
++        const sp<AMessage> &notify,
++        int32_t *sessionID) {
++
++   ALOGI("%s", __FUNCTION__);
++        
++   return createClientOrServer(
++           kModeCreateTCPBinaryDataSessionActive,
++           NULL /* addr */,
++           localPort,
++           remoteHost,
++           remotePort,
++           notify,
++           sessionID);
++}
+ 
+ status_t ANetworkSession::createTCPDatagramSession(
+         const struct in_addr &addr, unsigned port,
+@@ -974,7 +1160,10 @@ status_t ANetworkSession::createClientOrServer(
+     }
+ 
+     if (mode == kModeCreateRTSPServer
+-            || mode == kModeCreateTCPDatagramSessionPassive) {
++            || mode == kModeCreateTCPDatagramSessionPassive
++            || mode == kModeCreateTCPTextDataSessionPassive
++            || mode == kModeCreateUIBCServer
++            || mode == kModeCreateUDPSession) {
+         const int yes = 1;
+         res = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+ 
+@@ -1029,7 +1218,11 @@ status_t ANetworkSession::createClientOrServer(
+     addr.sin_family = AF_INET;
+ 
+     if (mode == kModeCreateRTSPClient
+-            || mode == kModeCreateTCPDatagramSessionActive) {
++     || mode == kModeCreateTCPDatagramSessionActive
++     || mode == kModeCreateUIBCClient
++     || mode == kModeCreateTCPBinaryDataSessionActive
++     )
++     {
+         struct hostent *ent= gethostbyname(remoteHost);
+         if (ent == NULL) {
+             err = -h_errno;
+@@ -1038,7 +1231,9 @@ status_t ANetworkSession::createClientOrServer(
+ 
+         addr.sin_addr.s_addr = *(in_addr_t *)ent->h_addr;
+         addr.sin_port = htons(remotePort);
+-    } else if (localAddr != NULL) {
++    } else if (localAddr != NULL && (mode != kModeCreateRTSPServer && 
++                                     mode != kModeCreateTCPTextDataSessionPassive && 
++                                     mode != kModeCreateUIBCServer)) {
+         addr.sin_addr = *localAddr;
+         addr.sin_port = htons(port);
+     } else {
+@@ -1047,7 +1242,11 @@ status_t ANetworkSession::createClientOrServer(
+     }
+ 
+     if (mode == kModeCreateRTSPClient
+-            || mode == kModeCreateTCPDatagramSessionActive) {
++     || mode == kModeCreateTCPDatagramSessionActive
++     || mode == kModeCreateUIBCClient
++     || mode == kModeCreateTCPBinaryDataSessionActive
++     ) 
++     {
+         in_addr_t x = ntohl(addr.sin_addr.s_addr);
+         ALOGI("connecting socket %d to %d.%d.%d.%d:%d",
+               s,
+@@ -1068,7 +1267,9 @@ status_t ANetworkSession::createClientOrServer(
+ 
+         if (res == 0) {
+             if (mode == kModeCreateRTSPServer
+-                    || mode == kModeCreateTCPDatagramSessionPassive) {
++                    || mode == kModeCreateTCPDatagramSessionPassive
++                    || mode == kModeCreateTCPTextDataSessionPassive
++                    || mode == kModeCreateUIBCServer) {
+                 res = listen(s, 4);
+             } else {
+                 CHECK_EQ(mode, kModeCreateUDPSession);
+@@ -1104,10 +1305,12 @@ status_t ANetworkSession::createClientOrServer(
+     Session::State state;
+     switch (mode) {
+         case kModeCreateRTSPClient:
++        case kModeCreateUIBCClient:
+             state = Session::CONNECTING;
+             break;
+ 
+         case kModeCreateTCPDatagramSessionActive:
++        case kModeCreateTCPBinaryDataSessionActive:
+             state = Session::CONNECTING;
+             break;
+ 
+@@ -1119,6 +1322,13 @@ status_t ANetworkSession::createClientOrServer(
+             state = Session::LISTENING_RTSP;
+             break;
+ 
++        case kModeCreateTCPTextDataSessionPassive:
++            state = Session::LISTENING_TCP_TEXT;
++            break;
++
++        case kModeCreateUIBCServer:
++            state = Session::LISTENING_TCP_UIBC;
++            break;
+         default:
+             CHECK_EQ(mode, kModeCreateUDPSession);
+             state = Session::DATAGRAM;
+@@ -1135,6 +1345,13 @@ status_t ANetworkSession::createClientOrServer(
+         session->setMode(Session::MODE_DATAGRAM);
+     } else if (mode == kModeCreateRTSPClient) {
+         session->setMode(Session::MODE_RTSP);
++    } else if (mode == kModeCreateTCPTextDataSessionPassive) {
++        session->setTCPConnectionType(Session::TCP_TEXTDATA);
++    } else if (mode == kModeCreateUIBCServer) {
++        session->setTCPConnectionType(Session::TCP_UIBC);
++    } else if (mode == kModeCreateTCPBinaryDataSessionActive) {
++        session->setTCPConnectionType(Session::TCP_BINDATA);
++        session->setMode(Session::MODE_DATAGRAM);
+     }
+ 
+     mSessions.add(session->sessionID(), session);
+@@ -1363,6 +1580,8 @@ void ANetworkSession::threadLoop() {
+                                         ? Session::MODE_RTSP
+                                         : Session::MODE_DATAGRAM);
+ 
++                            clientSession->setTCPConnectionType(
++                                    session->getTCPConnectionType());
+                             sessionsToAdd.push_back(clientSession);
+                         }
+                     } else {
+@@ -1398,4 +1617,69 @@ void ANetworkSession::threadLoop() {
+     }
+ }
+ 
++
++status_t ANetworkSession::sendDirectRequest(
++        int32_t sessionID, const void *data, ssize_t size) {
++    
++    ssize_t index = mSessions.indexOfKey(sessionID);
++
++    if (index < 0) {
++        return -ENOENT;
++    }
++
++    const sp<Session> session = mSessions.valueAt(index);
++
++    status_t err = session->writeDirectRequest(data, size);
++    
++    return err;
++}
++
++status_t ANetworkSession::createTCPTextDataSession(
++        const struct in_addr &addr, unsigned port,
++        const sp<AMessage> &notify, int32_t *sessionID) {
++    return createClientOrServer(
++            kModeCreateTCPTextDataSessionPassive,
++            &addr,
++            port,
++            NULL /* remoteHost */,
++            0 /* remotePort */,
++            notify,
++            sessionID);
++}
++
++status_t ANetworkSession::createUIBCClient(
++        const char *host, unsigned port, const sp<AMessage> &notify,
++        int32_t *sessionID) {
++    return createClientOrServer(
++            kModeCreateUIBCClient,
++            NULL /* addr */,
++            0 /* port */,
++            host,
++            port,
++            notify,
++            sessionID);
++}
++
++status_t ANetworkSession::createUIBCServer(
++        const struct in_addr &addr, unsigned port,
++        const sp<AMessage> &notify, int32_t *sessionID) {
++    return createClientOrServer(
++            kModeCreateUIBCServer,
++            &addr,
++            port,
++            NULL /* remoteHost */,
++            0 /* remotePort */,
++            notify,
++            sessionID);
++}
++void ANetworkSession::Session::setTCPConnectionType(int tcpType) {
++    ALOGD("setIsTCPDatagramConnection:%d", tcpType);
++    mTcpType = tcpType;
++}
++
++int ANetworkSession::Session::getTCPConnectionType() const {
++    ALOGD("getIsTCPDatagramConnection:%d", mTcpType);
++    return mTcpType;
++}
++
+ }  // namespace android
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/Android.mk b/vendor/rockchip/common/apps/WifiDisplay/jni/Android.mk
+index 5a40dd0dd0..b9fe192971 100755
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/Android.mk
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/Android.mk
+@@ -17,7 +17,16 @@ LOCAL_SRC_FILES:= \
+         WifiDisplaySink.cpp        \
+         ANetworkSession.cpp        \
+         ParsedMessage.cpp          \
+-        wfdsink_jni.cpp                    
++        wfdsink_jni.cpp            \
++        UibcClientHandler.cpp      \
++        UibcHandler.cpp            \
++        UibcMessage.cpp            \
++        UibcServerHandler.cpp \
++        VideoFormats.cpp \
++        Parameters.cpp
++
++
++
+ 
+ #LOCAL_SRC_FILES +=     \
+ #        HdmiEdid.cpp       \
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/Parameters.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/Parameters.cpp
+new file mode 100644
+index 0000000000..0768947c7d
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/Parameters.cpp
+@@ -0,0 +1,92 @@
++/*
++ * Copyright 2012, The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "include/Parameters.h"
++
++#include <media/stagefright/MediaErrors.h>
++
++namespace android {
++
++// static
++sp<Parameters> Parameters::Parse(const char *data, size_t size) {
++    sp<Parameters> params = new Parameters;
++    status_t err = params->parse(data, size);
++
++    if (err != OK) {
++        return NULL;
++    }
++
++    return params;
++}
++
++Parameters::Parameters() {}
++
++Parameters::~Parameters() {}
++
++status_t Parameters::parse(const char *data, size_t size) {
++    size_t i = 0;
++    while (i < size) {
++        size_t nameStart = i;
++        while (i < size && data[i] != ':') {
++            ++i;
++        }
++
++        if (i == size || i == nameStart) {
++            return ERROR_MALFORMED;
++        }
++
++        AString name(&data[nameStart], i - nameStart);
++        name.trim();
++        name.tolower();
++
++        ++i;
++
++        size_t valueStart = i;
++
++        while (i + 1 < size && (data[i] != '\r' || data[i + 1] != '\n')) {
++            ++i;
++        }
++
++        AString value(&data[valueStart], i - valueStart);
++        value.trim();
++
++        mDict.add(name, value);
++
++        while (i + 1 < size && data[i] == '\r' && data[i + 1] == '\n') {
++            i += 2;
++        }
++    }
++
++    return OK;
++}
++
++bool Parameters::findParameter(const char *name, AString *value) const {
++    AString key = name;
++    key.tolower();
++
++    ssize_t index = mDict.indexOfKey(key);
++
++    if (index < 0) {
++        value->clear();
++
++        return false;
++    }
++
++    *value = mDict.valueAt(index);
++    return true;
++}
++
++}  // namespace android
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcClientHandler.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcClientHandler.cpp
+new file mode 100644
+index 0000000000..0d194b411d
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcClientHandler.cpp
+@@ -0,0 +1,68 @@
++
++
++#define LOG_TAG "UibcClientHandler"
++#include <utils/Log.h>
++
++#include "include/UibcClientHandler.h"
++#include "include/WifiDisplayUibcType.h"
++
++#include <media/stagefright/foundation/ABuffer.h>
++#include <media/stagefright/foundation/ADebug.h>
++#include <media/stagefright/MediaErrors.h>
++#include <media/stagefright/foundation/hexdump.h>
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdint.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <errno.h>
++#include <netinet/in.h>
++
++namespace android {
++
++UibcClientHandler::UibcClientHandler()
++    : mSessionID(0) {
++}
++
++UibcClientHandler::~UibcClientHandler() {
++}
++
++status_t UibcClientHandler::init() {
++    int version;
++
++    UibcHandler::init();
++    return OK;
++}
++
++status_t UibcClientHandler::destroy() {
++
++    return OK;
++}
++
++status_t UibcClientHandler::sendUibcMessage(        sp<ANetworkSession> netSession,
++        UibcMessage::MessageType type,
++        const char *eventDesc) {
++    status_t err;
++    UibcMessage* message = new UibcMessage(type, eventDesc, m_widthRatio, m_heightRatio);
++    if (message != NULL && message->isDataValid()) {
++        ALOGI("sendUibcMessage Sending msg");
++        err = netSession->sendDirectRequest(
++                  mSessionID, message->getPacketData(), message->getPacketDataLen());
++    }
++    delete message;
++    return err;
++}
++
++void UibcClientHandler::setSessionID(int32_t SessionID) {
++    ALOGI("setSessionID (%d)", SessionID);
++    mSessionID = SessionID;
++}
++
++int32_t UibcClientHandler::getSessionID() {
++    ALOGI("getSessionID (%d)", mSessionID);
++    return mSessionID;
++}
++
++}
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcHandler.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcHandler.cpp
+new file mode 100644
+index 0000000000..b2a30d3f24
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcHandler.cpp
+@@ -0,0 +1,228 @@
++
++#define LOG_TAG "UibcHandler"
++#include "include/UibcHandler.h"
++
++#include <utils/Log.h>
++#include "include/UibcMessage.h"
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdint.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <errno.h>
++#include <netinet/in.h>
++#include <unistd.h>
++#include <linux/fb.h>
++#include <sys/mman.h>
++
++
++
++namespace android {
++
++UibcHandler::UibcHandler()
++    : m_wfdWidth(0),
++      m_wfdHeight(0),
++      m_localWidth(0),
++      m_localHeight(0),
++      m_widthRatio(0.0),
++      m_heightRatio(0.0),
++      mUibcEnabled(false),
++      mRemote_InputCat(0),
++      mRemote_InpType(0),
++      mPort(0) {
++}
++
++UibcHandler::~UibcHandler() {
++
++}
++
++status_t UibcHandler::init() {
++    int version;
++
++    UibcMessage::getScreenResolution(&m_localWidth, &m_localHeight);
++
++    return OK;
++}
++
++status_t UibcHandler::destroy() {
++    return OK;
++}
++
++void UibcHandler::setWFDResolution(int width, int heigh, int screenMode) {
++    int temp;
++
++    m_wfdWidth = width;
++    m_wfdHeight = heigh;
++
++    if ((screenMode == 1) && (m_localHeight > m_localWidth)) {
++        // Landscape
++        temp = m_localWidth;
++        m_localWidth = m_localHeight;
++        m_localHeight = temp;
++    } else if ((screenMode == 0) && (m_wfdHeight < m_wfdWidth)) {
++        // Protrait
++        temp = m_wfdWidth;
++        m_wfdWidth = m_wfdHeight;
++        m_wfdHeight = temp;
++    }
++
++    m_widthRatio = (double)((double)m_wfdWidth / (double)m_localWidth );
++    m_heightRatio = (double)((double)m_wfdHeight / (double)m_localHeight);
++
++    ALOGD("setWFDResolution screenMode=%d", screenMode);
++    ALOGD("setWFDResolution width=%d, heigh=%d", width, heigh);
++    ALOGD("setWFDResolution m_wfdWidth=%d, m_wfdHeight=%d", m_wfdWidth, m_wfdHeight);
++    ALOGD("setWFDResolution m_localWidth=%d, m_localHeight=%d", m_localWidth, m_localHeight);
++    ALOGD("setWFDResolution m_widthRatio=%f, m_heightRatio=%f", m_widthRatio, m_heightRatio);
++}
++
++void UibcHandler::run_consol_cmd(char *command) {
++    ALOGD("run_consol_cmd:\"%s\"", command);
++    FILE *fpipe;
++    char line[256];
++    if ( !(fpipe = (FILE*)popen(command, "r")) )
++        return;
++
++    while ( fgets( line, sizeof line, fpipe)) {
++        puts(line);
++    }
++    pclose(fpipe);
++}
++
++void UibcHandler::setUibcEnabled(bool enabled) {
++    mUibcEnabled = enabled;
++}
++
++void UibcHandler::setPort(int32_t port) {
++    ALOGD("setServerPort (%d)", port);
++    mPort = port;
++}
++
++void UibcHandler::setRemoteInputCatList(AString input_category_list) {
++    ALOGD("setRemoteInputCatList (%s)", input_category_list.c_str());
++    mRemote_InputCat = 0x00;
++
++    const char* pch = strstr(input_category_list.c_str(), "GENERIC");
++
++    if(pch)
++        mRemote_InputCat |= INPUT_CAT_GENERIC;
++
++    pch = strstr(input_category_list.c_str(), "HIDC");
++    if(pch)
++        mRemote_InputCat |= INPUT_CAT_HIDC;
++}
++
++void UibcHandler::setRemoteGenericCapList(AString generic_cap_list) {
++    ALOGD("setRemoteGenericCapList (%s)", generic_cap_list.c_str());
++    mRemote_InpType = 0x00;
++    const char* pch = strstr(generic_cap_list.c_str(), "Keyboard");
++    if(pch)
++        mRemote_InpType |= GENERIC_KEYBOARD;
++    pch = strstr(generic_cap_list.c_str(), "Mouse");
++    if(pch)
++        mRemote_InpType |= GENERIC_MOUSE;
++    pch = strstr(generic_cap_list.c_str(), "SingleTouch");
++    if(pch)
++        mRemote_InpType |= GENERIC_SINGLETOUCH;
++    pch = strstr(generic_cap_list.c_str(), "MultiTouch");
++    if(pch)
++        mRemote_InpType |= GENERIC_MULTITOUCH;
++    pch = strstr(generic_cap_list.c_str(), "Joystick");
++    if(pch)
++        mRemote_InpType |= GENERIC_JOYSTICK;
++    pch = strstr(generic_cap_list.c_str(), "Camera");
++    if(pch)
++        mRemote_InpType |= GENERIC_CAMERA;
++    pch = strstr(generic_cap_list.c_str(), "Gesture");
++    if(pch)
++        mRemote_InpType |= GENERIC_GESTURE;
++    pch = strstr(generic_cap_list.c_str(), "RemoteControl");
++    if(pch)
++        mRemote_InpType |= GENERIC_REMOTECONTROL;
++}
++
++void UibcHandler::setRemoteHidcCapList(AString hidc_cap_list) {
++    ALOGI("setServerHidcCapList (%s)", hidc_cap_list.c_str());
++}
++
++bool UibcHandler::getUibcEnabled() {
++    ALOGD("getUibcEnabled mUibcEnabled=%d", mUibcEnabled);
++    return mUibcEnabled;
++}
++int UibcHandler::getRemoteInputCatList() {
++    ALOGD("getRemoteInputCatList mRemote_InputCat=0x%04X", mRemote_InputCat);
++    return mRemote_InputCat;
++}
++int UibcHandler::getRemoteGenericCapList() {
++    ALOGD("getRemoteGenericCapList mRemote_InpType=0x%04X", mRemote_InpType);
++    return mRemote_InpType;
++}
++int UibcHandler::getPort() {
++    ALOGD("getPort mPort=%d", mPort);
++    return mPort;
++}
++
++int UibcHandler::getSupportedInputCatList(int localVal) {
++    return localVal & mRemote_InputCat;
++}
++
++int UibcHandler::getSupportedGenericCapList(int localVal) {
++    return localVal & mRemote_InpType;
++}
++
++char* UibcHandler::getSupportedInputCatListStr(int localVal) {
++    int supportedCat = localVal & mRemote_InputCat;
++
++    char* output = (char*)malloc(128);
++    *output = 0x00;
++    strcpy(output, "input_category_list=");
++
++    if (supportedCat == 0x0) {
++        strcat(output, "none,");
++    } else {
++        if ((supportedCat & INPUT_CAT_GENERIC) != 0x0)
++            strcat(output, "GENERIC,");
++        if ((supportedCat & INPUT_CAT_HIDC) != 0x0)
++            strcat(output, "HIDC,");
++    }
++
++    // Remove the latest comma
++    output[strlen(output) - 1] = 0x0;
++    ALOGD("getSupportedInputCatListStr output=%s", output);
++    return output;
++}
++
++char* UibcHandler::getSupportedGenericCapListStr(int localVal) {
++    int supportedCap = localVal & mRemote_InpType;
++    char* output = (char*)malloc(128);
++    *output = 0x00;
++    strcpy(output, "generic_cap_list=");
++
++    if (supportedCap == 0x0) {
++        strcat(output, "none,");
++    } else {
++        if ((supportedCap & GENERIC_MOUSE) != 0x0)
++            strcat(output, "Mouse, ");
++        if ((supportedCap & GENERIC_KEYBOARD) != 0x0)
++            strcat(output, "Keyboard, ");
++        if ((supportedCap & GENERIC_SINGLETOUCH) != 0x0)
++            strcat(output, "SingleTouch, ");
++        if ((supportedCap & GENERIC_MULTITOUCH) != 0x0)
++            strcat(output, "MultiTouch, ");
++        if ((supportedCap & GENERIC_JOYSTICK) != 0x0)
++            strcat(output, "Joystick, ");
++        if ((supportedCap & GENERIC_CAMERA) != 0x0)
++            strcat(output, "Camera, ");
++        if ((supportedCap & GENERIC_GESTURE) != 0x0)
++            strcat(output, "Gesture, ");
++        if ((supportedCap & GENERIC_REMOTECONTROL) != 0x0)
++            strcat(output, "RemoteControl, ");
++    }
++    // Remove the latest comma
++    if (output[strlen(output) - 2] == ',')
++        output[strlen(output) - 2] = 0x0;
++    ALOGD("getSupportedGenericCapListStr output=%s", output);
++    return output;
++}
++}
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp
+new file mode 100644
+index 0000000000..e50d65f05b
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcMessage.cpp
+@@ -0,0 +1,604 @@
++
++
++#define LOG_TAG "UibcMessage"
++#include <utils/Log.h>
++
++#include "include/UibcMessage.h"
++#include "include/WifiDisplayUibcType.h"
++
++#include <media/IRemoteDisplayClient.h>
++
++#include <media/stagefright/foundation/ABuffer.h>
++#include <media/stagefright/foundation/ADebug.h>
++#include <media/stagefright/MediaErrors.h>
++#include <media/stagefright/foundation/hexdump.h>
++
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdint.h>
++#include <ctype.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <errno.h>
++#include <netinet/in.h>
++
++#include <unistd.h>
++#include <linux/fb.h>
++#include <sys/mman.h>
++//#include <KeycodeLabels.h>
++
++#if (PLATFORM_VERSION == 11)
++#include <ui/DisplayConfig.h>
++#elif (PLATFORM_VERSION >= 12)
++#include <ui/DisplayMode.h>
++#else 
++#include <ui/DisplayInfo.h>
++#endif
++#include <gui/ISurfaceComposer.h>
++#include <gui/SurfaceComposerClient.h>
++
++namespace android {
++
++static const scanCodeBuild_t scanCode_DefaultMap[] = {
++    {0x00}, //0x00	#	NULL
++    {0x00}, //0x01	#	START OF HEADING
++    {0x00}, //0x02	#	START OF TEXT
++    {0x00}, //0x03	#	END OF TEXT
++    {0x00}, //0x04	#	END OF TRANSMISSION
++    {0x00}, //0x05	#	ENQUIRY
++    {0x00}, //0x06	#	ACKNOWLEDGE
++    {0x00}, //0x07	#	BELL
++    {KEY_BACKSPACE}, //0x08	#	BACKSPACE
++    {KEY_TAB}, //0x09	#	HORIZONTAL TABULATION
++    {KEY_LINEFEED}, //0x0A	#	LINE FEED
++    {KEY_TAB}, //0x0B	#	VERTICAL TABULATION
++    {KEY_PAGEDOWN}, //0x0C	#	FORM FEED
++    {KEY_ENTER}, //0x0D	#	CARRIAGE RETURN
++    {0x00}, //0x0E	#	SHIFT OUT
++    {KEY_LEFTSHIFT}, //0x0F	#	SHIFT IN
++    {0x00}, //0x10	#	DATA LINK ESCAPE
++    {KEY_LEFTCTRL}, //0x11	#	DEVICE CONTROL ONE
++    {KEY_LEFTCTRL}, //0x12	#	DEVICE CONTROL TWO
++    {KEY_LEFTCTRL}, //0x13	#	DEVICE CONTROL THREE
++    {KEY_LEFTCTRL}, //0x14	#	DEVICE CONTROL FOUR
++    {0x00}, //0x15	#	NEGATIVE ACKNOWLEDGE
++    {0x00}, //0x16	#	SYNCHRONOUS IDLE
++    {0x00}, //0x17	#	END OF TRANSMISSION BLOCK
++    {KEY_CANCEL}, //0x18	#	CANCEL
++    {0x00}, //0x19	#	END OF MEDIUM
++    {0x00}, //0x1A	#	SUBSTITUTE
++    {KEY_BACK}, //0x1B	#	ESCAPE
++    {0x00}, //0x1C	#	FILE SEPARATOR
++    {0x00}, //0x1D	#	GROUP SEPARATOR
++    {0x00}, //0x1E	#	RECORD SEPARATOR
++    {0x00}, //0x1F	#	UNIT SEPARATOR
++};
++
++#define UIBC_KEYCODE_UNKNOWN KEY_UNKNOWN
++
++UibcMessage::UibcMessage(UibcMessage::MessageType type,
++                         const char* inEventDesc,
++                         double widthRatio,
++                         double heightRatio)
++    : m_PacketData(NULL),
++      m_PacketDataLen(0),
++      m_DataValid(false) {
++
++    switch (type) {
++    case GENERIC_TOUCH_DOWN:
++    case GENERIC_TOUCH_UP:
++    case GENERIC_TOUCH_MOVE:
++        m_PacketDataLen = getUIBCGenericTouchPacket(inEventDesc,
++                          &m_PacketData,
++                          widthRatio,
++                          heightRatio);
++        break;
++
++    case GENERIC_KEY_DOWN:
++    case GENERIC_KEY_UP:
++        m_PacketDataLen = getUIBCGenericKeyPacket(inEventDesc, &m_PacketData);
++        break;
++
++    case GENERIC_ZOOM:
++        m_PacketDataLen = getUIBCGenericZoomPacket(inEventDesc, &m_PacketData);
++        break;
++
++    case GENERIC_VERTICAL_SCROLL:
++    case GENERIC_HORIZONTAL_SCROLL:
++        m_PacketDataLen = getUIBCGenericScalePacket(inEventDesc, &m_PacketData);
++        break;
++
++    case GENERIC_ROTATE:
++        m_PacketDataLen = getUIBCGenericRotatePacket(inEventDesc, &m_PacketData);
++        break;
++    };
++}
++
++UibcMessage::~UibcMessage() {
++    if (m_PacketData != NULL) {
++        free(m_PacketData);
++        m_PacketData = NULL;
++        m_DataValid = false;
++    }
++}
++
++status_t UibcMessage::init() {
++    int version;
++    return OK;
++}
++
++status_t UibcMessage::destroy() {
++
++    return OK;
++}
++
++char* UibcMessage::getPacketData() {
++    return m_PacketData;
++}
++
++int UibcMessage::getPacketDataLen() {
++    return m_PacketDataLen;
++}
++
++bool UibcMessage::isDataValid() {
++    return m_DataValid;
++}
++
++
++// format: "typeId, number of pointers, pointer Id1, X coordnate, Y coordnate, , pointer Id2, X coordnate, Y coordnate,..."
++int32_t UibcMessage::getUIBCGenericTouchPacket(const char *inEventDesc,
++        char** outData,
++        double widthRatio,
++        double heightRatio) {
++    ALOGD("getUIBCGenericTouchPacket (%s)", inEventDesc);
++    int32_t typeId = 0, numberOfPointers;
++    int32_t uibcBodyLen = 0, genericPacketLen;
++    int32_t pointerCounter, eventField;
++    int32_t temp;
++
++    char** splitedStr = UibcMessage::str_split((char*)inEventDesc, ',');
++
++    if (splitedStr) {
++        int i;
++        for (i = 0; * (splitedStr + i); i++) {
++            //ALOGD("getUIBCGenericTouchPacket splitedStr tokens=[%s]\n", *(splitedStr + i));
++
++            switch (i) {
++            case 0: {
++                typeId = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericTouchPacket typeId=[%d]\n", typeId);
++                break;
++            }
++            case 1: {
++                numberOfPointers = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericTouchPacket numberOfPointers=[%d]\n", numberOfPointers);
++                genericPacketLen = numberOfPointers * 5 + 1;
++                uibcBodyLen = genericPacketLen + 7; // Generic herder leh = 7
++                (*outData) = (char*)malloc(uibcBodyLen + 1);
++                // UIBC header
++                (*outData)[0] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[1] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[2] = (uibcBodyLen >> 8) & 0xFF; //Length(16 bits)
++                (*outData)[3] = uibcBodyLen & 0xFF; //Length(16 bits)
++                //Generic Input Body Format
++                (*outData)[4] = typeId & 0xFF; // Tyoe ID, 1 octet
++                (*outData)[5] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
++                (*outData)[6] = genericPacketLen & 0xFF; // Length, 2 octets
++                (*outData)[7] = numberOfPointers & 0xFF; // Number of pointers, 1 octet
++                break;
++            }
++            default: {
++                pointerCounter = (i - 2) / 3; // (curIndex - 2 fields, id+numPointers) /  (3 fields, id+x+y)
++                eventField = (i - 2) % 3; // 0 = id, 1 = x, 2 = y
++                temp = atoi(*(splitedStr + i));
++                switch (eventField) {
++                case 0: { // Pointer ID, 1 octet
++                    //ALOGD("getUIBCGenericTouchPacket Pointer ID=[%d]\n", temp);
++                    (*outData)[8 + pointerCounter * 5 + eventField] = temp & 0xFF;
++                    break;
++                }
++                case 1: { // X-coordinate, 2 octets
++                    temp = (int32_t)((double)temp * widthRatio);
++                    //ALOGD("getUIBCGenericTouchPacket X-coordinate=[%d]\n", temp);
++                    (*outData)[8 + pointerCounter * 5 + eventField] = (temp >> 8) & 0xFF;
++                    (*outData)[8 + pointerCounter * 5 + eventField + 1] = temp & 0xFF;
++                    break;
++                }
++                case 2: { // Y-coordinate, 2 octets
++                    temp = (int32_t)((double)temp * heightRatio);
++                    //ALOGD("getUIBCGenericTouchPacket Y-coordinate=[%d]\n", temp);
++                    (*outData)[8 + pointerCounter * 5 + eventField + 1] = (temp >> 8) & 0xFF;
++                    (*outData)[8 + pointerCounter * 5 + eventField + 2] = temp & 0xFF;
++                    break;
++                }
++                }
++                break;
++            }
++            }
++
++            free(*(splitedStr + i));
++        }
++        free(splitedStr);
++    }
++    hexdump((*outData), uibcBodyLen);
++    m_DataValid = true;
++    return uibcBodyLen;
++}
++
++// format: "typeId, Key code 1(0x00), Key code 2(0x00)"
++int32_t UibcMessage::getUIBCGenericKeyPacket(const char *inEventDesc,
++        char** outData) {
++    ALOGD("getUIBCGenericKeyPacket (%s)", inEventDesc);
++    int32_t typeId;
++    int32_t uibcBodyLen, genericPacketLen;
++    int32_t temp;
++
++    char** splitedStr = UibcMessage::str_split((char*)inEventDesc, ',');
++
++    if (splitedStr) {
++        int i;
++        for (i = 0; * (splitedStr + i); i++) {
++            //ALOGD("getUIBCGenericKeyPacket splitedStr tokens=[%s]\n", *(splitedStr + i));
++
++            switch (i) {
++            case 0: {
++                typeId = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericKeyPacket typeId=[%d]\n", typeId);
++                genericPacketLen = 5;
++                uibcBodyLen = genericPacketLen + 7; // Generic herder leh = 7
++                (*outData) = (char*)malloc(uibcBodyLen + 1);
++                // UIBC header
++                (*outData)[0] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[1] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[2] = (uibcBodyLen >> 8) & 0xFF; //Length(16 bits)
++                (*outData)[3] = uibcBodyLen & 0xFF; //Length(16 bits)
++                //Generic Input Body Format
++                (*outData)[4] = typeId & 0xFF; // Tyoe ID, 1 octet
++                (*outData)[5] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
++                (*outData)[6] = genericPacketLen & 0xFF; // Length, 2 octets
++                (*outData)[7] = 0x00; // resvered
++                break;
++            }
++            case 1: {
++                sscanf(*(splitedStr + i), " 0x%04X", &temp);
++                if (temp == 0) {
++                    uibcBodyLen = 0;
++                    (*outData)[8] = 0x00;
++                    (*outData)[9] = 0x00;
++                }
++                //ALOGD("getUIBCGenericKeyPacket key code 1=[%d]\n", temp);
++                (*outData)[8] = (temp >> 8) & 0xFF;
++                (*outData)[9] = temp & 0xFF;
++
++                break;
++            }
++            case 2: {
++                sscanf(*(splitedStr + i), " 0x%04X", &temp);
++                if (temp == 0) {
++                    (*outData)[10] = 0x00;
++                    (*outData)[11] = 0x00;
++                }
++                //ALOGD("getUIBCGenericKeyPacket key code 2=[%d]\n", temp);
++                (*outData)[10] = (temp >> 8) & 0xFF;
++                (*outData)[11] = temp & 0xFF;
++
++                break;
++            }
++            default: {
++            }
++            break;
++            }
++        }
++
++        free(*(splitedStr + i));
++    }
++    free(splitedStr);
++    hexdump((*outData), uibcBodyLen);
++    m_DataValid = true;
++    return uibcBodyLen;
++}
++
++// format: "typeId,  X coordnate, Y coordnate, integer part, fraction part"
++int32_t UibcMessage::getUIBCGenericZoomPacket(const char *inEventDesc, char** outData) {
++    ALOGD("getUIBCGenericZoomPacket (%s)", inEventDesc);
++    int32_t typeId;
++    int32_t uibcBodyLen, genericPacketLen;
++    int32_t eventField;
++    int32_t xCoord, yCoord, integerPart, FractionPart;
++
++    char** splitedStr = UibcMessage::str_split((char*)inEventDesc, ',');
++
++    if (splitedStr) {
++        int i;
++        for (i = 0; * (splitedStr + i); i++) {
++            //ALOGD("getUIBCGenericZoomPacket splitedStr tokens=[%s]\n", *(splitedStr + i));
++
++            switch (i) {
++            case 0: {
++                typeId = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericZoomPacket typeId=[%d]\n", typeId);
++
++                genericPacketLen = 6;
++                uibcBodyLen = genericPacketLen + 7; // Generic herder leh = 7
++                (*outData) = (char*)malloc(uibcBodyLen + 1);
++                // UIBC header
++                (*outData)[0] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[1] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[2] = (uibcBodyLen >> 8) & 0xFF; //Length(16 bits)
++                (*outData)[3] = uibcBodyLen & 0xFF; //Length(16 bits)
++                //Generic Input Body Format
++                (*outData)[4] = typeId & 0xFF; // Tyoe ID, 1 octet
++                (*outData)[5] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
++                (*outData)[6] = genericPacketLen & 0xFF; // Length, 2 octets
++                break;
++            }
++
++            case 1: {
++                xCoord = atoi(*(splitedStr + i));
++                (*outData)[7] = (xCoord >> 8) & 0xFF;
++                (*outData)[8] = xCoord & 0xFF;
++                //ALOGD("getUIBCGenericZoomPacket xCoord=[%d]\n", xCoord);
++                break;
++            }
++            case 2: {
++                yCoord = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericZoomPacket yCoord=[%d]\n", yCoord);
++                break;
++            }
++            case 3: {
++                integerPart = atoi(*(splitedStr + i));
++                (*outData)[11] = integerPart & 0xFF;
++                //ALOGD("getUIBCGenericZoomPacket integerPart=[%d]\n", integerPart);
++                break;
++            }
++            case 4: {
++                FractionPart = atoi(*(splitedStr + i));
++                (*outData)[12] = FractionPart & 0xFF;
++                //ALOGD("getUIBCGenericZoomPacket FractionPart=[%d]\n", FractionPart);
++
++                break;
++            }
++            default: {
++                break;
++            }
++            }
++
++            free(*(splitedStr + i));
++        }
++        free(splitedStr);
++    }
++    hexdump((*outData), uibcBodyLen);
++    m_DataValid = true;
++    return uibcBodyLen;
++}
++
++// format: "typeId,  unit, direction, amount to scroll"
++int32_t UibcMessage::getUIBCGenericScalePacket(const char *inEventDesc, char** outData) {
++    ALOGD("getUIBCGenericScalePacket (%s)", inEventDesc);
++    int32_t typeId;
++    int32_t uibcBodyLen, genericPacketLen;
++    int32_t temp;
++
++    char** splitedStr = UibcMessage::str_split((char*)inEventDesc, ',');
++
++    if (splitedStr) {
++        int i;
++        for (i = 0; * (splitedStr + i); i++) {
++            //ALOGD("getUIBCGenericScalePacket splitedStr tokens=[%s]\n", *(splitedStr + i));
++
++            switch (i) {
++            case 0: {
++                typeId = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericScalePacket typeId=[%d]\n", typeId);
++                genericPacketLen = 2;
++                uibcBodyLen = genericPacketLen + 7; // Generic herder leh = 7
++                (*outData) = (char*)malloc(uibcBodyLen + 1);
++                // UIBC header
++                (*outData)[0] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[1] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[2] = (uibcBodyLen >> 8) & 0xFF; //Length(16 bits)
++                (*outData)[3] = uibcBodyLen & 0xFF; //Length(16 bits)
++                //Generic Input Body Format
++                (*outData)[4] = typeId & 0xFF; // Tyoe ID, 1 octet
++                (*outData)[5] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
++                (*outData)[6] = genericPacketLen & 0xFF; // Length, 2 octets
++                (*outData)[7] = 0x00; // Clear the byte
++                (*outData)[8] = 0x00; // Clear the byte
++                /*
++                B15B14; Scroll Unit Indication bits.
++                0b00; the unit is a pixel (normalized with respect to the WFD Source display resolution that is conveyed in an RTSP M4 request message).
++                0b01; the unit is a mouse notch (where the application is responsible for representing the number of pixels per notch).
++                0b10-0b11; Reserved.
++
++                B13; Scroll Direction Indication bit.
++                0b0; Scrolling to the right. Scrolling to the right means the displayed content being shifted to the left from a user perspective.
++                0b1; Scrolling to the left. Scrolling to the left means the displayed content being shifted to the right from a user perspective.
++
++                B12:B0; Number of Scroll bits.
++                Number of units for a Horizontal scroll.
++                */
++                break;
++            }
++            case 1: {
++                temp = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericScalePacket unit=[%d]\n", temp);
++                (*outData)[7] = (temp >> 8) & 0xFF;
++                break;
++            }
++            case 2: {
++                temp = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericScalePacket direction=[%d]\n", temp);
++                (*outData)[7] |= ((temp >> 10) & 0xFF);
++                break;
++
++            }
++            case 3: {
++                temp = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericScalePacket amount to scroll=[%d]\n", temp);
++                (*outData)[7] |= ((temp >> 12) & 0xFF);
++                (*outData)[8] = temp & 0xFF;
++
++                break;
++            }
++            default: {
++                break;
++            }
++            }
++
++            free(*(splitedStr + i));
++        }
++
++        free(splitedStr);
++    }
++    hexdump((*outData), uibcBodyLen);
++    m_DataValid = true;
++    return uibcBodyLen;
++}
++
++// format: "typeId,  integer part, fraction part"
++int32_t UibcMessage::getUIBCGenericRotatePacket(const char * inEventDesc, char** outData) {
++    ALOGD("getUIBCGenericRotatePacket (%s)", inEventDesc);
++    int32_t typeId;
++    int32_t uibcBodyLen, genericPacketLen;
++    int32_t temp;
++    int32_t integerPart, FractionPart;
++
++    char** splitedStr = UibcMessage::str_split((char*)inEventDesc, ',');
++
++    if (splitedStr) {
++        int i;
++        for (i = 0; * (splitedStr + i); i++) {
++            //ALOGD("getUIBCGenericRotatePacket splitedStr tokens=[%s]\n", *(splitedStr + i));
++
++            switch (i) {
++            case 0: {
++                typeId = atoi(*(splitedStr + i));
++                //ALOGD("getUIBCGenericRotatePacket typeId=[%d]\n", typeId);
++                genericPacketLen = 2;
++                uibcBodyLen = genericPacketLen + 7; // Generic herder leh = 7
++                (*outData) = (char*)malloc(uibcBodyLen + 1);
++                // UIBC header
++                (*outData)[0] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[1] = 0x00; //Version (3 bits),T (1 bit),Reserved(8 bits),Input Category (4 bits)
++                (*outData)[2] = (uibcBodyLen >> 8) & 0xFF; //Length(16 bits)
++                (*outData)[3] = uibcBodyLen & 0xFF; //Length(16 bits)
++                //Generic Input Body Format
++                (*outData)[4] = typeId & 0xFF; // Tyoe ID, 1 octet
++                (*outData)[5] = (genericPacketLen >> 8) & 0xFF; // Length, 2 octets
++                (*outData)[6] = genericPacketLen & 0xFF; // Length, 2 octets
++                break;
++            }
++            case 1: {
++                integerPart = atoi(*(splitedStr + i));
++                (*outData)[7] = integerPart & 0xFF;
++                //ALOGD("getUIBCGenericRotatePacket integerPart=[%d]\n", integerPart);
++                break;
++            }
++            case 2: {
++                FractionPart = atoi(*(splitedStr + i));
++                (*outData)[8] = FractionPart & 0xFF;
++                //ALOGD("getUIBCGenericRotatePacket FractionPart=[%d]\n", FractionPart);
++
++                break;
++            }
++            default: {
++                break;
++            }
++            }
++            free(*(splitedStr + i));
++        }
++
++        free(splitedStr);
++    }
++    hexdump((*outData), uibcBodyLen);
++    m_DataValid = true;
++    return uibcBodyLen;
++}
++
++
++//static
++scanCodeBuild_t UibcMessage::asciiToScancodeBuild(UINT16 asciiCode) {
++    scanCodeBuild_t ret = scanCode_DefaultMap[0];
++
++    ALOGD("asciiCode: %d", asciiCode);
++
++    ret = scanCode_DefaultMap[asciiCode];
++
++    ALOGD("scanCode: %d", ret.scanCode);
++    return ret;
++}
++
++//static
++short UibcMessage::scancodeToAcsii(UINT8 scanCode) {
++    short ret = UIBC_KEYCODE_UNKNOWN;
++
++    ALOGD("scanCode : %d", scanCode);
++
++    for (unsigned int i = 0; i < (sizeof(scanCode_DefaultMap) / sizeof(scanCode_DefaultMap[0])); i++) {
++        if (scanCode == scanCode_DefaultMap[i].scanCode) {
++            ret = i;
++            break;
++        }
++    }
++
++    ALOGD("asciiCode: %d", ret);
++    return ret;
++}
++
++//static
++void UibcMessage::getScreenResolution(int* x, int* y) {
++#if PLATFORM_SDK_VERSION >= 29
++    sp<IBinder> display(SurfaceComposerClient::getInternalDisplayToken());
++#else
++    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
++            ISurfaceComposer::eDisplayIdMain));
++#endif
++/*    DisplayInfo info;
++    SurfaceComposerClient::getDisplayInfo(display, &info);
++    *x = info.w;
++    *y = info.h;*/
++}
++
++char** UibcMessage::str_split(char * a_str, const char a_delim) {
++    char** result    = 0;
++    size_t count     = 0;
++    char* tmp        = a_str;
++    char* last_comma = 0;
++
++    /* Count how many elements will be extracted. */
++    while (*tmp) {
++        if (a_delim == *tmp) {
++            count++;
++            last_comma = tmp;
++        }
++        tmp++;
++    }
++
++    /* Add space for trailing token. */
++    count += last_comma < (a_str + strlen(a_str) - 1);
++
++    /* Add space for terminating null string so caller
++       knows where the list of returned strings ends. */
++    count++;
++
++    result = (char**)malloc(sizeof(char*) * count);
++
++    if (result) {
++        size_t idx  = 0;
++        char* token = strtok(a_str, ",");
++
++        while (token) {
++            CHECK_LT(idx , count);
++            *(result + idx++) = strdup(token);
++            token = strtok(0, ",");
++        }
++        CHECK_EQ(idx , count - 1);
++        *(result + idx) = 0;
++    }
++
++    return result;
++}
++
++}
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp
+new file mode 100644
+index 0000000000..be45e55f99
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/UibcServerHandler.cpp
+@@ -0,0 +1,817 @@
++
++
++#define LOG_TAG "UibcServerHandler"
++#include <utils/Log.h>
++
++#include "include/UibcMessage.h"
++#include "include/UibcServerHandler.h"
++#include "include/WifiDisplayUibcType.h"
++
++#include <media/stagefright/foundation/ABuffer.h>
++#include <media/stagefright/foundation/ADebug.h>
++#include <media/stagefright/MediaErrors.h>
++#include <media/stagefright/foundation/hexdump.h>
++
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdint.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <errno.h>
++#include <netinet/in.h>
++#include <unistd.h>
++#include <linux/fb.h>
++#include <sys/mman.h>
++#include <linux/input.h>
++
++#include <binder/IServiceManager.h>
++#include <gui/SurfaceComposerClient.h>
++#if (PLATFORM_VERSION == 11)
++#include <ui/DisplayConfig.h>
++#elif (PLATFORM_VERSION >= 12)
++#include <ui/DisplayMode.h>
++#else 
++#include <ui/DisplayInfo.h>
++#endif
++#include <gui/ISurfaceComposer.h>
++#include <cutils/properties.h>
++
++namespace android {
++
++#define BTN_TOUCH   0x14a
++
++#define WFD_UIBC_HIDC_USAGE_REPORT_INPUT        0x00
++#define WFD_UIBC_HIDC_USAGE_REPORT_DESCRIPTOR   0x01
++
++#define HID_LEFTSHIFT_BIT                       0x02
++#define HID_RIGHTSHIFT_BIT                      0x20
++
++#define UIBC_KBD_NAME  "uibc"
++#define UIBC_KEY_PRESS      1
++#define UIBC_KEY_RELEASE    0
++#define UIBC_KEY_RESERVE	2
++#define UIBC_POINTER_X	    3
++#define UIBC_POINTER_Y	    4
++#define UIBC_KEYBOARD	    5
++#define UIBC_MOUSE	        6
++#define UIBC_TOUCH_DOWN		7
++#define UIBC_TOUCH_UP		8
++#define UIBC_TOUCH_MOVE		9
++
++#define MAX_POINTERS 5
++
++UibcServerHandler::UibcServerHandler(sp<IRemoteDisplayClient> remoteClient)
++    : mUibc_kbd_fd(-1),
++      m_XCurCoord(-1),
++      m_YCurCoord(-1),
++      mShiftPressed(false),
++      m_touchDown(false),
++      m_mouseDown(false),
++      m_deltaX(0),
++      m_deltaY(0),
++      m_XOffset(0),
++      m_YOffset(0),
++      m_XRevert(false),
++      m_YRevert(false),
++      m_XYSwitch(false),
++      m_mouseCursorSupported(false),
++      mRemoteClient(remoteClient) {
++      // m_Orientation = DISPLAY_ORIENTATION_0;
++}
++
++UibcServerHandler::~UibcServerHandler() {
++
++}
++
++status_t UibcServerHandler::init() {
++    int version;
++
++    UibcHandler::init();
++
++    char mouseCursor[PROPERTY_VALUE_MAX];
++    if (property_get("media.wfd.uibc-mouse-cursor", mouseCursor, NULL)) {
++        int value = atoi(mouseCursor);
++        if(value == 1) {
++            ALOGI("media.wfd.uibc-mouse-cursor:%s", mouseCursor);
++            m_mouseCursorSupported = true;
++        }
++    }
++
++    if(mUibc_kbd_fd >= 0) {
++        close(mUibc_kbd_fd);
++        mUibc_kbd_fd = -1;
++    }
++    mUibc_kbd_fd = open(UIBC_KBD_DEV_PATH, O_WRONLY);
++    if(mUibc_kbd_fd < 0) {
++        ALOGE("sendKeyEvent error");
++        return -1;
++    }
++
++    initIoPeripheral();
++
++    return OK;
++}
++
++status_t UibcServerHandler::destroy() {
++
++    if(mUibc_kbd_fd >= 0) {
++        close(mUibc_kbd_fd);
++        mUibc_kbd_fd = -1;
++    }
++    return OK;
++}
++
++void UibcServerHandler::initIoPeripheral() {
++    ALOGI("initIoPeripheral");
++    bool bKeyboardSupported = !!(mRemote_InpType & GENERIC_KEYBOARD);
++    bool bTouchSupported = !!(mRemote_InpType & GENERIC_SINGLETOUCH);
++    bool bMouseSupported = !!(mRemote_InpType & GENERIC_MOUSE);
++
++    if (bKeyboardSupported ||
++        bTouchSupported ||
++        bMouseSupported) {
++        if(ioctl(mUibc_kbd_fd, UIBC_KEYBOARD, 0) < 0) {
++            ALOGE("Initial uibc ioctl failed!");
++            close(mUibc_kbd_fd);
++            mUibc_kbd_fd = -1;
++            return;
++        }
++    }
++}
++
++status_t UibcServerHandler::handleUIBCMessage(const sp<ABuffer> &buffer) {
++    //ALOGD("handleUIBCMessage mUibcEnabled=0x%04X, mRemote_InputCat=0x%04X, mRemote_InpType=0x%04X, ",
++    //mUibcEnabled, mRemote_InputCat, mRemote_InpType);
++
++    if (mUibcEnabled == UIBC_DISABLED)
++        return OK;
++
++    size_t size = buffer->size();
++    size_t payloadOffset = 0;
++    UIBCInputCategoryCode  inputCategory = WFD_UIBC_INPUT_CATEGORY_UNKNOWN;
++
++    if(size < UIBC_HEADER_SIZE) {
++        ALOGE("The size of UIBC message is less than header size");
++        return ERROR_MALFORMED;
++    }
++
++    const uint8_t *data = buffer->data();
++
++#if TEST_COMMAND
++#if 0
++    ALOGD("in with");
++    hexdump(data, size);
++#endif
++
++
++    int testCmd = data[0];
++    ALOGD("testCmd:%d", testCmd);
++
++    if(testCmd >= 0x80) { //Enter test command
++        switch(testCmd) {
++        case 0x80: {
++            for(int j = 0; j < 1; j++) {
++                sendKeyEvent(30 + j, 1);
++                //sendKeyEvent(30+j, 0);
++            }
++            break;
++        }
++        case 0x81: {
++            int testCode = data[1];
++            sendKeyEvent(testCode, 1);
++            sendKeyEvent(testCode, 0);
++            break;
++        }
++        case 0x82: {
++            //sendTouchEvent(0, 320, 320, WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_DOWN);
++            //sendTouchEvent(0, 340, 320, WFD_UIBC_GENERIC_IE_ID_MOUSE_TOUCH_MOVE);
++            //sendTouchEvent(0, 360, 320, WFD_UIBC_GENERIC_IE_ID_MOUSE_TOUCH_MOVE);
++            //sendTouchEvent(0, 600, 320, WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_UP);
++        }
++        break;
++        }
++
++        return OK;
++    }
++
++    //Check UIBC version
++#if 0
++    if ((data[0] >> 6) != 0) {
++        // Unsupported version.
++        return ERROR_UNSUPPORTED;
++    }
++#endif
++#endif
++    //Skip the timestamp
++    bool hasTimeStamp = data[0] & UIBC_TIMESTAMP_MASK;
++    if(hasTimeStamp) {
++        payloadOffset = UIBC_HEADER_SIZE + UIBC_TIMESTAMP_SIZE;
++    } else {
++        payloadOffset = UIBC_HEADER_SIZE;
++    }
++
++    if (size < payloadOffset) {
++        // Not enough data to fit the basic header
++        ALOGE("Not enough data to fit the basic header");
++        return ERROR_MALFORMED;
++    }
++
++    buffer->setRange(payloadOffset, size - payloadOffset);
++
++    inputCategory = (UIBCInputCategoryCode) (data[1] & UIBC_INPUT_CATEGORY_MASK);
++
++    switch(inputCategory) {
++    case WFD_UIBC_INPUT_CATEGORY_GENERIC:
++        if ((mRemote_InputCat & INPUT_CAT_GENERIC) == UIBC_NONE) {
++            ALOGD("INPUT_CAT_GENERIC not supported.");
++            return OK;
++        }
++
++        handleGenericInput(buffer);
++        break;
++    case WFD_UIBC_INPUT_CATEGORY_HIDC:
++        if ((mRemote_InputCat & INPUT_CAT_HIDC) == UIBC_NONE) {
++            ALOGD("INPUT_CAT_HIDC not supported.");
++            return OK;
++        }
++
++        //handleHIDCInput(buffer);
++        break;
++    default:
++        ALOGE("Uknown input category:%d", inputCategory);
++        break;
++    }
++
++    return OK;
++}
++
++status_t UibcServerHandler::handleGenericInput(const sp<ABuffer> &buffer) {
++    size_t size = buffer->size();
++    WFD_UIBC_GENERIC_BODY_FORMAT_HDR *pHdr = (WFD_UIBC_GENERIC_BODY_FORMAT_HDR*) buffer->data();
++    UINT16 bodyLength = ntohs(pHdr->length);
++
++    if (size < bodyLength) {
++        ALOGE("Error: not enough space for a complete generic body:%d", bodyLength);
++        return ERROR;
++    }
++
++    //ALOGV("handleGenericInput with IE:%d", pHdr->ieID);
++
++    switch (pHdr->ieID) {
++    case WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_DOWN:
++    case WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_UP:
++    case WFD_UIBC_GENERIC_IE_ID_MOUSE_TOUCH_MOVE: {
++        WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH *pBody = (WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH*)pHdr;
++        ALOGI("uibc (Move,Down,Up) ieID: %d, numptr: %d",
++              pBody->ieID,
++              pBody->numPointers);
++
++        if ((pBody->numPointers > 1) &&
++            ((mRemote_InpType & GENERIC_MULTITOUCH) == UIBC_NONE)) {
++            ALOGD("GENERIC_MULTITOUCH not supported.");
++            return OK;
++        }
++        sendMultipleTouchEvent(pBody);
++        break;
++    }
++    case WFD_UIBC_GENERIC_IE_ID_KEY_DOWN:
++    case WFD_UIBC_GENERIC_IE_ID_KEY_UP: {
++        if ((mRemote_InpType & GENERIC_KEYBOARD) == UIBC_NONE)
++            return OK;
++
++        if((sizeof(WFD_UIBC_GENERIC_BODY_FORMAT_HDR) + bodyLength)
++            == sizeof(WFD_UIBC_GENERIC_BODY_KEY)) {
++            WFD_UIBC_GENERIC_BODY_KEY *pBody = (WFD_UIBC_GENERIC_BODY_KEY*)pHdr;
++            ALOGD("uibc (Key,Down,Up) ieID: %d, code1: %d, code2: %d",
++                  pBody->ieID,
++                  ntohs(pBody->code1),
++                  ntohs(pBody->code2));
++            int isDown =   ( (pHdr->ieID == WFD_UIBC_GENERIC_IE_ID_KEY_DOWN) ? 1 : 0  );
++            if( ntohs(pBody->code1) > 0) {
++                sendKeyEvent(ntohs(pBody->code1), isDown);
++            }
++
++            if(ntohs(pBody->code2) > 0) {
++                sendKeyEvent(ntohs(pBody->code2), isDown);
++            }
++        }
++        break;
++    }
++    case WFD_UIBC_GENERIC_IE_ID_ZOOM:
++        if((sizeof(WFD_UIBC_GENERIC_BODY_FORMAT_HDR) + bodyLength)
++            == sizeof(WFD_UIBC_GENERIC_BODY_ZOOM)) {
++            WFD_UIBC_GENERIC_BODY_ZOOM *pBody = (WFD_UIBC_GENERIC_BODY_ZOOM*)pHdr;
++            ALOGD("uibc (ZOOM) ieID: %d, x: %d, y: %d, itimes: %d, ftimes: %d",
++                  pBody->ieID,
++                  pBody->x,
++                  pBody->y,
++                  pBody->intTimes,
++                  pBody->fractTimes);
++        }
++        break;
++    case WFD_UIBC_GENERIC_IE_ID_VSCROLL:
++    case WFD_UIBC_GENERIC_IE_ID_HSCROLL:
++        if((sizeof(WFD_UIBC_GENERIC_BODY_FORMAT_HDR) + bodyLength)
++            == sizeof(WFD_UIBC_GENERIC_BODY_SCROLL)) {
++            WFD_UIBC_GENERIC_BODY_SCROLL *pBody = (WFD_UIBC_GENERIC_BODY_SCROLL*)pHdr;
++            ALOGD("uibc (SCROLL V/H) ieID: %d, amount: %d",
++                  pBody->ieID,
++                  pBody->amount);
++        }
++        break;
++    case WFD_UIBC_GENERIC_IE_ID_ROTATE:
++        if((sizeof(WFD_UIBC_GENERIC_BODY_FORMAT_HDR) + bodyLength)
++            == sizeof(WFD_UIBC_GENERIC_BODY_ROTATE)) {
++            WFD_UIBC_GENERIC_BODY_ROTATE *pBody = (WFD_UIBC_GENERIC_BODY_ROTATE*)pHdr;
++            ALOGD("uibc (ROTATE V/H) ieID: %d, iamount: %d, famount: %d",
++                  pBody->ieID,
++                  pBody->intAmount,
++                  pBody->fractAmount);
++            break;
++        }
++    default:
++        ALOGE("Unknown User input for generic type");
++        break;
++    }
++
++    return OK;
++}
++
++status_t UibcServerHandler::handleHIDCInput(const sp<ABuffer> &buffer) {
++    size_t bufferSize = buffer->size();
++    size_t payloadOffset = 0;
++
++    if (bufferSize < sizeof(WFD_UIBC_HIDC_BODY_FORMAT_HDR)) {
++        ALOGE("Error: not enough space for a complete HIDC header:%d", bufferSize);
++        return ERROR;
++    }
++
++    WFD_UIBC_HIDC_BODY_FORMAT_HDR *pHdr = (WFD_UIBC_HIDC_BODY_FORMAT_HDR*) buffer->data();
++    UINT16 bodyLength = ntohs(pHdr->length);
++
++    if (bufferSize < bodyLength + sizeof(WFD_UIBC_HIDC_BODY_FORMAT_HDR)) {
++        ALOGE("Error: not enough space for a complete HIDC body:%d", bufferSize);
++        return ERROR;
++    }
++
++    ALOGI("handleHIDCInput with Info:(%d:%d:%d)", pHdr->inputPath, pHdr->hidType, pHdr->usage);
++
++    payloadOffset = sizeof(WFD_UIBC_HIDC_BODY_FORMAT_HDR);
++    buffer->setRange(payloadOffset, bufferSize - payloadOffset); // Move the buffer to the HIDC body part
++    uint8_t* pBuffer = buffer->data();
++
++    switch (pHdr->usage) {
++    case WFD_UIBC_HIDC_USAGE_REPORT_INPUT: {
++        if (pHdr->inputPath == WFD_UIBC_HIDC_IE_ID_USB) {
++            switch(pHdr->hidType) {
++            case WFD_UIBC_HIDCTYPE_IE_ID_KEYBOARD:
++                if(bodyLength == 8) {
++                    if(pBuffer[2] != 0) {
++                        //Check the shift key
++                        if((pBuffer[0] & HID_LEFTSHIFT_BIT) || (pBuffer[0] & HID_RIGHTSHIFT_BIT)) {
++                            //sendKeyEvent(AKEYCODE_SHIFT_LEFT, 1);
++                            //sendKeyEvent(AKEYCODE_SHIFT_LEFT, 0);
++                        }
++                        sendKeyEvent(pBuffer[2], 1);
++                    } else {
++                        sendKeyEvent(pBuffer[2], 0);
++                    }
++                }
++                break;
++            case WFD_UIBC_HIDCTYPE_IE_ID_MOUSE:
++                if(bodyLength >= 3) {
++                    int xOffs, yOffs;
++                    xOffs = (char) pBuffer[1];
++                    yOffs = (char) pBuffer[2];
++                    if (xOffs >= 0x80) xOffs -= 0x80;
++                    if (yOffs >= 0x80) yOffs -= 0x80;
++                    //sendTouchEvent(0, xOffs, yOffs, WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_DOWN);
++                    //sendTouchEvent(0, xOffs, yOffs, WFD_UIBC_GENERIC_IE_ID_MOUSE_TOUCH_MOVE);
++                    //sendTouchEvent(0, xOffs, yOffs, WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_UP);
++                }
++                break;
++            }
++        }
++        break;
++    }
++    case WFD_UIBC_HIDC_USAGE_REPORT_DESCRIPTOR: {
++
++        break;
++    }
++    }
++
++    return OK;
++}
++
++status_t UibcServerHandler::sendKeyEvent(UINT16 code, int isPress) {
++    scanCodeBuild_t scanCodeBuild;
++    uint16_t scenCodeShift = KEY_LEFTSHIFT;
++    uint16_t scenCodeAlt = KEY_LEFTALT;
++
++    if (code < 0x20 || code == 0x7F/*DEL*/) {
++        if (code == 0x7F) {
++            scanCodeBuild.scanCode = KEY_DELETE;
++        } else {
++            scanCodeBuild = UibcMessage::asciiToScancodeBuild((char)code);
++        }
++        // Send the target ascii character
++        if (isPress) {
++            if(ioctl(mUibc_kbd_fd, UIBC_KEY_PRESS, &scanCodeBuild.scanCode) < 0) {
++                ALOGE("sendKeyEvent Fail hid ioctl");
++                close(mUibc_kbd_fd);
++                mUibc_kbd_fd = -1;
++                return -1;
++            }
++        } else {
++            if(ioctl(mUibc_kbd_fd, UIBC_KEY_RELEASE, &scanCodeBuild.scanCode) < 0) {
++                ALOGE("sendKeyEvent Fail hid ioctl");
++                close(mUibc_kbd_fd);
++                mUibc_kbd_fd = -1;
++                return -1;
++            }
++        }
++    } else {
++        if(isPress == 1 && mRemoteClient != NULL) {
++            ALOGD("sendKeyEvent:%d/%d", code, isPress);
++            //mRemoteClient->onDisplayKeyEvent(code, isPress);
++        }
++    }
++    return OK;
++}
++
++void UibcServerHandler::updateScreenMode() {
++
++#if 0
++    display_mode localDisplayMode = DISPLAY_MODE_PORTRAIT;
++    display_mode remoteDisplayMode = DISPLAY_MODE_PORTRAIT;
++
++#if PLATFORM_SDK_VERSION >= 29
++    sp<IBinder> display(SurfaceComposerClient::getInternalDisplayToken());
++#else
++    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
++            ISurfaceComposer::eDisplayIdMain));
++#endif
++    DisplayInfo info;
++    SurfaceComposerClient::getDisplayInfo(display, &info);
++    m_Orientation = info.orientation;
++
++    //ALOGD("updateScreenMode: info.orientation:%d info.w:%d info.h:%d", info.orientation, info.w, info.h);
++
++    if (info.w > info.h)
++        localDisplayMode = DISPLAY_MODE_LANDSCAPE;
++
++    if (m_wfdWidth > m_wfdHeight)
++        remoteDisplayMode = DISPLAY_MODE_LANDSCAPE;
++
++    if (info.orientation == DISPLAY_ORIENTATION_90 ||
++        info.orientation == DISPLAY_ORIENTATION_270) {
++        localDisplayMode = (localDisplayMode == DISPLAY_MODE_LANDSCAPE ?
++                            DISPLAY_MODE_PORTRAIT : DISPLAY_MODE_LANDSCAPE);
++        m_localWidth = info.h;
++        m_localHeight = info.w;
++    } else {
++        m_localWidth = info.w;
++        m_localHeight = info.h;
++    }
++
++    m_widthRatio = (double)m_localWidth / (double)m_wfdWidth;
++    m_heightRatio = (double)m_localHeight / (double)m_wfdHeight;
++    m_XOffset = 0;
++    m_YOffset = 0;
++
++    if (localDisplayMode != remoteDisplayMode) {
++        if (localDisplayMode == DISPLAY_MODE_LANDSCAPE) {
++            m_heightRatio = m_widthRatio;
++            m_YOffset = ((m_wfdHeight - (int)((float)m_localHeight / m_heightRatio)) / 2);
++        } else if (localDisplayMode == DISPLAY_MODE_PORTRAIT) {
++            m_widthRatio = m_heightRatio;
++            m_XOffset = ((m_wfdWidth - (int)((float)m_localWidth / m_widthRatio)) / 2);
++        }
++    }
++
++    switch (info.orientation) {
++    case DISPLAY_ORIENTATION_0:
++        m_XYSwitch = false;
++        m_XRevert = false;
++        m_YRevert = false;
++        break;
++    case DISPLAY_ORIENTATION_90:
++        m_XYSwitch = true;
++        m_XRevert = true;
++        m_YRevert = false;
++        break;
++    case DISPLAY_ORIENTATION_180:
++        m_XYSwitch = false;
++        m_XRevert = true;
++        m_YRevert = true;
++        break;
++    case DISPLAY_ORIENTATION_270:
++        m_XYSwitch = true;
++        m_XRevert = false;
++        m_YRevert = true;
++        break;
++    default:
++        break;
++    }
++    ALOGD("uibc screen mode: localDisplayMode:%d, remoteDisplayMode:%d" \
++          "m_localWidth:%d, m_localHeight:%d" \
++          "m_wfdWidth:%d, m_wfdHeight:%d" \
++          "m_widthRatio:%f, m_heightRatio:%f" \
++          "m_XOffset:%d, m_YOffset:%d",
++          localDisplayMode, remoteDisplayMode,
++          m_localWidth, m_localHeight,
++          m_wfdWidth, m_wfdHeight,
++          m_widthRatio, m_heightRatio,
++          m_XOffset, m_YOffset);
++#endif    
++}
++
++bool UibcServerHandler::transTouchToSourcePosition(short* x, short* y) {
++    ALOGD("uibc XY trans+: x:%d, y:%d", *x, *y);
++    short tmp;
++    // in the black part
++    if ((m_XOffset > 0) &&
++        (*x < m_XOffset ||
++         *x > (m_wfdWidth - m_XOffset))) {
++        return false;
++    }
++    // in the black part
++    if ((m_YOffset > 0) &&
++        (*y < m_YOffset ||
++         *y > (m_wfdHeight - m_YOffset))) {
++        return false;
++    }
++
++    *x -= m_XOffset;
++    *y -= m_YOffset;
++    //ALOGD("transTouchToSourcePosition remove offset: * x:%d, * y:%d", *x, *y);
++
++    *x *= m_widthRatio;
++    *y *= m_heightRatio;
++    //ALOGD("transTouchToSourcePosition map to source: * x:%d, * y:%d", *x, *y);
++
++    if (m_XYSwitch) {
++        tmp = *x;
++        *x = *y;
++        *y = tmp;
++    }
++    //ALOGD("transTouchToSourcePosition XY switch: * x:%d, * y:%d", *x, *y);
++
++    if (m_XRevert) {
++        if (m_XYSwitch)
++            *x = m_localHeight - *x;
++        else
++            *x = m_localWidth - *x;
++    }
++
++    if (m_YRevert) {
++        if (m_XYSwitch)
++            *y = m_localWidth - *y;
++        else
++            *y = m_localHeight - *y;
++    }
++    ALOGD("uibc XY trans-: x:%d, y:%d", *x, *y);
++    return true;
++}
++
++status_t UibcServerHandler::sendMultipleTouchEvent(WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH *pBody) {
++    //ALOGD("sendMultipleTouchEvent ieID: %d, numptr: %d, m_touchDown = %d",
++    //      pBody->ieID,
++    //      pBody->numPointers,
++    //      m_touchDown);
++    WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH* pHdr = (WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH *)pBody;
++    short touchPosition[16] = {0};
++    int TouchPressed = 0;
++    short deltaX = 0, deltaY = 0;
++    short x, y;
++    uint16_t scenCodeMouse = BTN_MOUSE;
++    bool m_touchSupported = !!(mRemote_InpType & GENERIC_SINGLETOUCH);
++    bool m_mouseSupported = !!(mRemote_InpType & GENERIC_MOUSE);
++
++    if (pHdr->ieID == WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_DOWN && !m_mouseDown && !m_touchDown) {
++        touchPosition[0] = (short)pBody->numPointers;
++        //ALOGD("TOUCH_DOWN: pointerID:%d x:%d y:%d", pBody->coordinates[0].pointerID,
++        //ntohs(pBody->coordinates[0].x), ntohs(pBody->coordinates[0].y));
++        x = ntohs(pBody->coordinates[0].x);
++        y = ntohs(pBody->coordinates[0].y);
++
++        if (m_XCurCoord == x && m_YCurCoord == y) {
++            if (m_mouseCursorSupported) {
++                m_mouseDown = true;
++                if(ioctl(mUibc_kbd_fd, UIBC_KEY_PRESS, &scenCodeMouse) < 0) {
++                    ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                    close(mUibc_kbd_fd);
++                    mUibc_kbd_fd = -1;
++                    return -1;
++                }
++            } else if (m_mouseSupported) {
++                m_touchDown = true;
++                updateScreenMode();
++                if (!transTouchToSourcePosition(&x, &y))
++                    return -1;
++                touchPosition[1] = (short)pBody->coordinates[0].pointerID;
++                touchPosition[2] = x;
++                touchPosition[3] = y;
++
++                if(ioctl(mUibc_kbd_fd, UIBC_TOUCH_DOWN, &touchPosition) < 0) {
++                    ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                    close(mUibc_kbd_fd);
++                    mUibc_kbd_fd = -1;
++                    return -1;
++                }
++            }
++        } else if (!(m_XCurCoord == x && m_YCurCoord == y)) {
++            m_touchDown = true;
++            if (m_touchSupported) {
++                updateScreenMode();
++                if (!transTouchToSourcePosition(&x, &y))
++                    return -1;
++                touchPosition[1] = (short)pBody->coordinates[0].pointerID;
++                touchPosition[2] = x;
++                touchPosition[3] = y;
++
++                if(ioctl(mUibc_kbd_fd, UIBC_TOUCH_DOWN, &touchPosition) < 0) {
++                    ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                    close(mUibc_kbd_fd);
++                    mUibc_kbd_fd = -1;
++                    return -1;
++                }
++            }
++        }
++    } else  if (pHdr->ieID == WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_UP) {
++        if (m_mouseDown) {
++            if (m_mouseCursorSupported) {
++                if(ioctl(mUibc_kbd_fd, UIBC_KEY_RELEASE, &scenCodeMouse) < 0) {
++                    ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                    close(mUibc_kbd_fd);
++                    mUibc_kbd_fd = -1;
++                    return -1;
++                }
++            }
++            m_mouseDown = false;
++        } else if (m_touchDown) {
++            if (m_touchSupported || m_mouseSupported) {
++                if(ioctl(mUibc_kbd_fd, UIBC_TOUCH_UP, &touchPosition) < 0) {
++                    ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                    close(mUibc_kbd_fd);
++                    mUibc_kbd_fd = -1;
++                    return -1;
++                }
++            }
++            m_touchDown = false;
++        }
++    } else  if (pHdr->ieID == WFD_UIBC_GENERIC_IE_ID_MOUSE_TOUCH_MOVE)  {
++        if (m_touchDown) {
++            touchPosition[0] = (short)pBody->numPointers;
++            for(int i = 0; i < pBody->numPointers && i < (short)pBody->numPointers; i++) {
++                //ALOGD("TOUCH_MOVE %dth: pointerID:%d x:%d y:%d", i, pBody->coordinates[i].pointerID,
++                //ntohs(pBody->coordinates[i].x), ntohs(pBody->coordinates[i].y));
++                x = ntohs(pBody->coordinates[i].x);
++                y = ntohs(pBody->coordinates[i].y);
++                touchPosition[i * 3 + 1] = (short)pBody->coordinates[i].pointerID;
++                touchPosition[i * 3 + 2] = x;
++                touchPosition[i * 3 + 3] = y;
++                if (!transTouchToSourcePosition(&touchPosition[i * 3 + 2], &touchPosition[i * 3 + 3]))
++                    return -1;
++            }
++            if (m_touchSupported || m_mouseSupported) {
++                if(ioctl(mUibc_kbd_fd, UIBC_TOUCH_MOVE, &touchPosition) < 0) {
++                    ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                    close(mUibc_kbd_fd);
++                    mUibc_kbd_fd = -1;
++                    return -1;
++                }
++            }
++        } else {
++            if (pBody->numPointers == 1) {
++                x = ntohs(pBody->coordinates[0].x);
++                y = ntohs(pBody->coordinates[0].y);
++                if (m_mouseCursorSupported) {
++                    if (m_XCurCoord == -1 && m_YCurCoord == -1) {
++                       /* if (m_Orientation == DISPLAY_ORIENTATION_90 ||
++                            m_Orientation == DISPLAY_ORIENTATION_270) {
++                            m_XCurCoord = m_wfdHeight / 2;
++                            m_YCurCoord = m_wfdWidth / 2;
++                        } else {
++                            m_XCurCoord = m_wfdWidth / 2;
++                            m_YCurCoord = m_wfdHeight / 2;
++                        }*/
++                    }
++                    deltaX = (x - m_XCurCoord);
++                    deltaY = (y - m_YCurCoord);
++                    // Align the cursor to the boundary
++                    if (deltaX == 0 && deltaY != 0) {
++                        if (x < 3) {
++                            deltaX = -1280;
++                        } else  if ((m_wfdWidth - x) < 3 ) { // x == m_wfdWidth
++                            deltaX = 1280;
++                        }
++                    }
++                    if (deltaY == 0 && deltaX != 0) {
++                        if (y  < 3) {
++                            deltaY = -1280;
++                        } else  if ((m_wfdHeight - y) < 3 ) { // x == m_wfdHeight
++                            deltaY = 1280;
++                        }
++                    }
++                    //ALOGD("TOUCH_MOVE x:%d y:%d deltaX:%d deltaY:%d", x, y, m_deltaX, m_deltaY);
++                    if (m_mouseSupported) {
++                        if(ioctl(mUibc_kbd_fd, UIBC_POINTER_X, &deltaX) < 0) {
++                            ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                            close(mUibc_kbd_fd);
++                            mUibc_kbd_fd = -1;
++                            return -1;
++                        }
++                        if(ioctl(mUibc_kbd_fd, UIBC_POINTER_Y, &deltaY) < 0) {
++                            ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++                            close(mUibc_kbd_fd);
++                            mUibc_kbd_fd = -1;
++                            return -1;
++                        }
++                    }
++                    m_deltaX = deltaX;
++                    m_deltaY = deltaY;
++                }
++                m_XCurCoord = x;
++                m_YCurCoord = y;
++            }
++        }
++    }
++    return OK;
++}
++
++status_t UibcServerHandler::simulateKeyEvent() {
++    UINT16 aChar = 0x61;
++    int i;
++
++    for (i = 0; i < 26; i++) {
++        sendKeyEvent(aChar, 1);
++        sendKeyEvent(aChar, 0);
++        aChar++;
++    }
++
++    return OK;
++}
++
++status_t UibcServerHandler::simulateMouseEvent() {
++    int i;
++    int temp;
++    uint16_t scenCodeMouse = BTN_MOUSE;
++
++    // Move to left bondary from right bondary
++    for (i = 0; i < 500; i++) {
++        temp = -1;
++        if(ioctl(mUibc_kbd_fd, UIBC_POINTER_X, &temp) < 0) {
++            ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++            close(mUibc_kbd_fd);
++            mUibc_kbd_fd = -1;
++            return -1;
++        }
++        temp = 0;
++        if(ioctl(mUibc_kbd_fd, UIBC_POINTER_Y, &temp) < 0) {
++            ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++            close(mUibc_kbd_fd);
++            mUibc_kbd_fd = -1;
++            return -1;
++        }
++    }
++
++    if(ioctl(mUibc_kbd_fd, UIBC_KEY_PRESS, &scenCodeMouse) < 0) {
++        ALOGE("sendKeyEvent Fail hid ioctl");
++        close(mUibc_kbd_fd);
++        mUibc_kbd_fd = -1;
++        return -1;
++    }
++
++    // Move to left bondary from right bondary
++    for (i = 0; i < 1000; i++) {
++        temp = 1;
++        if(ioctl(mUibc_kbd_fd, UIBC_POINTER_X, &temp) < 0) {
++            ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++            close(mUibc_kbd_fd);
++            mUibc_kbd_fd = -1;
++            return -1;
++        }
++        temp = 0;
++        if(ioctl(mUibc_kbd_fd, UIBC_POINTER_Y, &temp) < 0) {
++            ALOGE("sendMultipleTouchEvent Fail hid ioctl");
++            close(mUibc_kbd_fd);
++            mUibc_kbd_fd = -1;
++            return -1;
++        }
++    }
++
++
++    if(ioctl(mUibc_kbd_fd, UIBC_KEY_RELEASE, &scenCodeMouse) < 0) {
++        ALOGE("sendKeyEvent Fail hid ioctl");
++        close(mUibc_kbd_fd);
++        mUibc_kbd_fd = -1;
++        return -1;
++    }
++
++
++    return OK;
++}
++}
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/VideoFormats.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/VideoFormats.cpp
+new file mode 100644
+index 0000000000..6b97fe79a4
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/VideoFormats.cpp
+@@ -0,0 +1,550 @@
++/*
++ * Copyright 2013, The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++//#define LOG_NDEBUG 0
++#define LOG_TAG "VideoFormats"
++#include <utils/Log.h>
++
++#include "include/VideoFormats.h"
++
++#include <media/stagefright/foundation/ADebug.h>
++
++namespace android {
++
++// static
++const VideoFormats::config_t VideoFormats::mResolutionTable[][32] = {
++    {
++        // CEA Resolutions
++        { 640, 480, 60, false, 0, 0},
++        { 720, 480, 60, false, 0, 0},
++        { 720, 480, 60, true, 0, 0},
++        { 720, 576, 50, false, 0, 0},
++        { 720, 576, 50, true, 0, 0},
++        { 1280, 720, 30, false, 0, 0},
++        { 1280, 720, 60, false, 0, 0},
++        { 1920, 1080, 30, false, 0, 0},
++        { 1920, 1080, 60, false, 0, 0},
++        { 1920, 1080, 60, true, 0, 0},
++        { 1280, 720, 25, false, 0, 0},
++        { 1280, 720, 50, false, 0, 0},
++        { 1920, 1080, 25, false, 0, 0},
++        { 1920, 1080, 50, false, 0, 0},
++        { 1920, 1080, 50, true, 0, 0},
++        { 1280, 720, 24, false, 0, 0},
++        { 1920, 1080, 24, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++    },
++    {
++        // VESA Resolutions
++        { 800, 600, 30, false, 0, 0},
++        { 800, 600, 60, false, 0, 0},
++        { 1024, 768, 30, false, 0, 0},
++        { 1024, 768, 60, false, 0, 0},
++        { 1152, 864, 30, false, 0, 0},
++        { 1152, 864, 60, false, 0, 0},
++        { 1280, 768, 30, false, 0, 0},
++        { 1280, 768, 60, false, 0, 0},
++        { 1280, 800, 30, false, 0, 0},
++        { 1280, 800, 60, false, 0, 0},
++        { 1360, 768, 30, false, 0, 0},
++        { 1360, 768, 60, false, 0, 0},
++        { 1366, 768, 30, false, 0, 0},
++        { 1366, 768, 60, false, 0, 0},
++        { 1280, 1024, 30, false, 0, 0},
++        { 1280, 1024, 60, false, 0, 0},
++        { 1400, 1050, 30, false, 0, 0},
++        { 1400, 1050, 60, false, 0, 0},
++        { 1440, 900, 30, false, 0, 0},
++        { 1440, 900, 60, false, 0, 0},
++        { 1600, 900, 30, false, 0, 0},
++        { 1600, 900, 60, false, 0, 0},
++        { 1600, 1200, 30, false, 0, 0},
++        { 1600, 1200, 60, false, 0, 0},
++        { 1680, 1024, 30, false, 0, 0},
++        { 1680, 1024, 60, false, 0, 0},
++        { 1680, 1050, 30, false, 0, 0},
++        { 1680, 1050, 60, false, 0, 0},
++        { 1920, 1200, 30, false, 0, 0},
++        { 1920, 1200, 60, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++    },
++    {
++        // HH Resolutions
++        { 800, 480, 30, false, 0, 0},
++        { 800, 480, 60, false, 0, 0},
++        { 854, 480, 30, false, 0, 0},
++        { 854, 480, 60, false, 0, 0},
++        { 864, 480, 30, false, 0, 0},
++        { 864, 480, 60, false, 0, 0},
++        { 640, 360, 30, false, 0, 0},
++        { 640, 360, 60, false, 0, 0},
++        { 960, 540, 30, false, 0, 0},
++        { 960, 540, 60, false, 0, 0},
++        { 848, 480, 30, false, 0, 0},
++        { 848, 480, 60, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++        { 0, 0, 0, false, 0, 0},
++    }
++};
++
++VideoFormats::VideoFormats() {
++    memcpy(mConfigs, mResolutionTable, sizeof(mConfigs));
++
++    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
++        mResolutionEnabled[i] = 0;
++    }
++
++    setNativeResolution(RESOLUTION_CEA, 0);  // default to 640x480 p60
++}
++
++void VideoFormats::setNativeResolution(ResolutionType type, size_t index) {
++    CHECK_LT(type, kNumResolutionTypes);
++    CHECK(GetConfiguration(type, index, NULL, NULL, NULL, NULL));
++
++    mNativeType = type;
++    mNativeIndex = index;
++
++    setResolutionEnabled(type, index);
++}
++
++void VideoFormats::getNativeResolution(
++        ResolutionType *type, size_t *index) const {
++    *type = mNativeType;
++    *index = mNativeIndex;
++}
++
++void VideoFormats::disableAll() {
++    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
++        mResolutionEnabled[i] = 0;
++        for (size_t j = 0; j < 32; j++) {
++            mConfigs[i][j].profile = mConfigs[i][j].level = 0;
++        }
++    }
++}
++
++void VideoFormats::enableAll() {
++    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
++        mResolutionEnabled[i] = 0xffffffff;
++        for (size_t j = 0; j < 32; j++) {
++            mConfigs[i][j].profile = (1ul << PROFILE_CBP);
++            mConfigs[i][j].level = (1ul << LEVEL_31);
++        }
++    }
++}
++
++void VideoFormats::enableResolutionUpto(
++        ResolutionType type, size_t index,
++        ProfileType profile, LevelType level) {
++    size_t width, height, fps, score;
++    bool interlaced;
++    if (!GetConfiguration(type, index, &width, &height,
++            &fps, &interlaced)) {
++        ALOGE("Maximum resolution not found!");
++        return;
++    }
++    score = width * height * fps * (!interlaced + 1);
++    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
++        for (size_t j = 0; j < 32; j++) {
++            if (GetConfiguration((ResolutionType)i, j,
++                    &width, &height, &fps, &interlaced)
++                    && score >= width * height * fps * (!interlaced + 1)) {
++                setResolutionEnabled((ResolutionType)i, j);
++                setProfileLevel((ResolutionType)i, j, profile, level);
++            }
++        }
++    }
++}
++
++void VideoFormats::setResolutionEnabled(
++        ResolutionType type, size_t index, bool enabled) {
++    CHECK_LT(type, kNumResolutionTypes);
++    CHECK(GetConfiguration(type, index, NULL, NULL, NULL, NULL));
++
++    if (enabled) {
++        mResolutionEnabled[type] |= (1ul << index);
++        mConfigs[type][index].profile = (1ul << PROFILE_CBP);
++        mConfigs[type][index].level = (1ul << LEVEL_31);
++    } else {
++        mResolutionEnabled[type] &= ~(1ul << index);
++        mConfigs[type][index].profile = 0;
++        mConfigs[type][index].level = 0;
++    }
++}
++
++void VideoFormats::setProfileLevel(
++        ResolutionType type, size_t index,
++        ProfileType profile, LevelType level) {
++    CHECK_LT(type, kNumResolutionTypes);
++    CHECK(GetConfiguration(type, index, NULL, NULL, NULL, NULL));
++
++    mConfigs[type][index].profile = (1ul << profile);
++    mConfigs[type][index].level = (1ul << level);
++}
++
++void VideoFormats::getProfileLevel(
++        ResolutionType type, size_t index,
++        ProfileType *profile, LevelType *level) const{
++    CHECK_LT(type, kNumResolutionTypes);
++    CHECK(GetConfiguration(type, index, NULL, NULL, NULL, NULL));
++
++    int i, bestProfile = -1, bestLevel = -1;
++
++    for (i = 0; i < kNumProfileTypes; ++i) {
++        if (mConfigs[type][index].profile & (1ul << i)) {
++            bestProfile = i;
++        }
++    }
++
++    for (i = 0; i < kNumLevelTypes; ++i) {
++        if (mConfigs[type][index].level & (1ul << i)) {
++            bestLevel = i;
++        }
++    }
++
++    if (bestProfile == -1 || bestLevel == -1) {
++        ALOGE("Profile or level not set for resolution type %d, index %zu",
++                type, index);
++        bestProfile = PROFILE_CBP;
++        bestLevel = LEVEL_31;
++    }
++
++    *profile = (ProfileType) bestProfile;
++    *level = (LevelType) bestLevel;
++}
++
++bool VideoFormats::isResolutionEnabled(
++        ResolutionType type, size_t index) const {
++    CHECK_LT(type, kNumResolutionTypes);
++    CHECK(GetConfiguration(type, index, NULL, NULL, NULL, NULL));
++
++    return mResolutionEnabled[type] & (1ul << index);
++}
++
++// static
++bool VideoFormats::GetConfiguration(
++        ResolutionType type,
++        size_t index,
++        size_t *width, size_t *height, size_t *framesPerSecond,
++        bool *interlaced) {
++    CHECK_LT(type, kNumResolutionTypes);
++
++    if (index >= 32) {
++        return false;
++    }
++
++    const config_t *config = &mResolutionTable[type][index];
++
++    if (config->width == 0) {
++        return false;
++    }
++
++    if (width) {
++        *width = config->width;
++    }
++
++    if (height) {
++        *height = config->height;
++    }
++
++    if (framesPerSecond) {
++        *framesPerSecond = config->framesPerSecond;
++    }
++
++    if (interlaced) {
++        *interlaced = config->interlaced;
++    }
++
++    return true;
++}
++
++bool VideoFormats::parseH264Codec(const char *spec) {
++    unsigned profile, level, res[3];
++
++    if (sscanf(
++            spec,
++            "%02x %02x %08X %08X %08X",
++            &profile,
++            &level,
++            &res[0],
++            &res[1],
++            &res[2]) != 5) {
++        return false;
++    }
++
++    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
++        for (size_t j = 0; j < 32; ++j) {
++            if (res[i] & (1ul << j)){
++                mResolutionEnabled[i] |= (1ul << j);
++                if (profile > mConfigs[i][j].profile) {
++                    // prefer higher profile (even if level is lower)
++                    mConfigs[i][j].profile = profile;
++                    mConfigs[i][j].level = level;
++                } else if (profile == mConfigs[i][j].profile &&
++                           level > mConfigs[i][j].level) {
++                    mConfigs[i][j].level = level;
++                }
++            }
++        }
++    }
++
++    return true;
++}
++
++// static
++bool VideoFormats::GetProfileLevel(
++        ProfileType profile, LevelType level, unsigned *profileIdc,
++        unsigned *levelIdc, unsigned *constraintSet) {
++    CHECK_LT(profile, kNumProfileTypes);
++    CHECK_LT(level, kNumLevelTypes);
++
++    static const unsigned kProfileIDC[kNumProfileTypes] = {
++        66,     // PROFILE_CBP
++        100,    // PROFILE_CHP
++    };
++
++    static const unsigned kLevelIDC[kNumLevelTypes] = {
++        31,     // LEVEL_31
++        32,     // LEVEL_32
++        40,     // LEVEL_40
++        41,     // LEVEL_41
++        42,     // LEVEL_42
++    };
++
++    static const unsigned kConstraintSet[kNumProfileTypes] = {
++        0xc0,   // PROFILE_CBP
++        0x0c,   // PROFILE_CHP
++    };
++
++    if (profileIdc) {
++        *profileIdc = kProfileIDC[profile];
++    }
++
++    if (levelIdc) {
++        *levelIdc = kLevelIDC[level];
++    }
++
++    if (constraintSet) {
++        *constraintSet = kConstraintSet[profile];
++    }
++
++    return true;
++}
++
++bool VideoFormats::parseFormatSpec(const char *spec) {
++    CHECK_EQ(kNumResolutionTypes, 3);
++
++    disableAll();
++
++    unsigned native, dummy;
++    size_t size = strlen(spec);
++    size_t offset = 0;
++
++    if (sscanf(spec, "%02x %02x ", &native, &dummy) != 2) {
++        return false;
++    }
++
++    offset += 6; // skip native and preferred-display-mode-supported
++    CHECK_LE(offset + 58, size);
++    while (offset < size) {
++        parseH264Codec(spec + offset);
++        offset += 60; // skip H.264-codec + ", "
++    }
++
++    mNativeIndex = native >> 3;
++    mNativeType = (ResolutionType)(native & 7);
++
++    bool success;
++    if (mNativeType >= kNumResolutionTypes) {
++        success = false;
++    } else {
++        success = GetConfiguration(
++                mNativeType, mNativeIndex, NULL, NULL, NULL, NULL);
++    }
++
++    if (!success) {
++        ALOGW("sink advertised an illegal native resolution, fortunately "
++              "this value is ignored for the time being...");
++    }
++
++    return true;
++}
++
++AString VideoFormats::getFormatSpec(bool forM4Message) const {
++    CHECK_EQ(kNumResolutionTypes, 3);
++
++    // wfd_video_formats:
++    // 1 byte "native"
++    // 1 byte "preferred-display-mode-supported" 0 or 1
++    // one or more avc codec structures
++    //   1 byte profile
++    //   1 byte level
++    //   4 byte CEA mask
++    //   4 byte VESA mask
++    //   4 byte HH mask
++    //   1 byte latency
++    //   2 byte min-slice-slice
++    //   2 byte slice-enc-params
++    //   1 byte framerate-control-support
++    //   max-hres (none or 2 byte)
++    //   max-vres (none or 2 byte)
++
++    return AStringPrintf(
++            "%02x 00 %02x %02x %08x %08x %08x 00 0000 0000 00 none none",
++            forM4Message ? 0x00 : ((mNativeIndex << 3) | mNativeType),
++            mConfigs[mNativeType][mNativeIndex].profile,
++            mConfigs[mNativeType][mNativeIndex].level,
++            mResolutionEnabled[0],
++            mResolutionEnabled[1],
++            mResolutionEnabled[2]);
++}
++
++// static
++bool VideoFormats::PickBestFormat(
++        const VideoFormats &sinkSupported,
++        const VideoFormats &sourceSupported,
++        ResolutionType *chosenType,
++        size_t *chosenIndex,
++        ProfileType *chosenProfile,
++        LevelType *chosenLevel) {
++#if 0
++    // Support for the native format is a great idea, the spec includes
++    // these features, but nobody supports it and the tests don't validate it.
++
++    ResolutionType nativeType;
++    size_t nativeIndex;
++    sinkSupported.getNativeResolution(&nativeType, &nativeIndex);
++    if (sinkSupported.isResolutionEnabled(nativeType, nativeIndex)) {
++        if (sourceSupported.isResolutionEnabled(nativeType, nativeIndex)) {
++            ALOGI("Choosing sink's native resolution");
++            *chosenType = nativeType;
++            *chosenIndex = nativeIndex;
++            return true;
++        }
++    } else {
++        ALOGW("Sink advertised native resolution that it doesn't "
++              "actually support... ignoring");
++    }
++
++    sourceSupported.getNativeResolution(&nativeType, &nativeIndex);
++    if (sourceSupported.isResolutionEnabled(nativeType, nativeIndex)) {
++        if (sinkSupported.isResolutionEnabled(nativeType, nativeIndex)) {
++            ALOGI("Choosing source's native resolution");
++            *chosenType = nativeType;
++            *chosenIndex = nativeIndex;
++            return true;
++        }
++    } else {
++        ALOGW("Source advertised native resolution that it doesn't "
++              "actually support... ignoring");
++    }
++#endif
++
++    bool first = true;
++    uint32_t bestScore = 0;
++    size_t bestType = 0;
++    size_t bestIndex = 0;
++    for (size_t i = 0; i < kNumResolutionTypes; ++i) {
++        for (size_t j = 0; j < 32; ++j) {
++            size_t width, height, framesPerSecond;
++            bool interlaced;
++            if (!GetConfiguration(
++                        (ResolutionType)i,
++                        j,
++                        &width, &height, &framesPerSecond, &interlaced)) {
++                break;
++            }
++
++            if (!sinkSupported.isResolutionEnabled((ResolutionType)i, j)
++                    || !sourceSupported.isResolutionEnabled(
++                        (ResolutionType)i, j)) {
++                continue;
++            }
++
++            ALOGV("type %zu, index %zu, %zu x %zu %c%zu supported",
++                  i, j, width, height, interlaced ? 'i' : 'p', framesPerSecond);
++
++            uint32_t score = width * height * framesPerSecond;
++            if (!interlaced) {
++                score *= 2;
++            }
++
++            if (first || score > bestScore) {
++                bestScore = score;
++                bestType = i;
++                bestIndex = j;
++
++                first = false;
++            }
++        }
++    }
++
++    if (first) {
++        return false;
++    }
++
++    *chosenType = (ResolutionType)bestType;
++    *chosenIndex = bestIndex;
++
++    // Pick the best profile/level supported by both sink and source.
++    ProfileType srcProfile, sinkProfile;
++    LevelType srcLevel, sinkLevel;
++    sourceSupported.getProfileLevel(
++                        (ResolutionType)bestType, bestIndex,
++                        &srcProfile, &srcLevel);
++    sinkSupported.getProfileLevel(
++                        (ResolutionType)bestType, bestIndex,
++                        &sinkProfile, &sinkLevel);
++    *chosenProfile = srcProfile < sinkProfile ? srcProfile : sinkProfile;
++    *chosenLevel = srcLevel < sinkLevel ? srcLevel : sinkLevel;
++
++    return true;
++}
++
++}  // namespace android
++
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/WifiDisplaySink.cpp b/vendor/rockchip/common/apps/WifiDisplay/jni/WifiDisplaySink.cpp
+index b14209dcf4..552bff16c4 100755
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/WifiDisplaySink.cpp
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/WifiDisplaySink.cpp
+@@ -55,6 +55,9 @@
+ #else 
+ #include <ui/DisplayInfo.h>
+ #endif
++#include "include/UibcMessage.h"
++#include "include/Parameters.h"
++#include "include/VideoFormats.h"
+ 
+ #define SOCK_PATH "/data/data/wfd_socket"
+ 
+@@ -74,6 +77,7 @@ WifiDisplaySink::WifiDisplaySink(
+       mNetSession(netSession),
+       connectionCount(0),
+       mSessionID(0),
++      mUibcClientHandler(NULL),
+       mNextCSeq(1) {
+       mUrl = NULL;
+ 	 end_flag = 0;
+@@ -1016,8 +1020,11 @@ void WifiDisplaySink::onGetParameterRequest(
+             if (strstr(request_param, "wfd_3d_video_formats"))
+                 body.append("wfd_3d_video_formats: none\r\n");
+ 
+-        if (strstr(request_param, "wfd_uibc_capability"))
+-        	body.append("wfd_uibc_capability: none\r\n"); 
++        if (strstr(request_param, "wfd_uibc_capability")){
++        	//body.append("wfd_uibc_capability: input_category_list=HIDC;hidc_cap_list=Keyboard/USB, Mouse/USB, RemoteControl/USB;port=none\r\n"); 
++            body.append(UIBC_SINK_CAPABILTY);
++            mUibcClientHandler = new UibcClientHandler();
++        }
+ 
+         if (strstr(request_param, "wfd_content_protection")) {
+ #ifdef WFD_HDCP_SUPPORT
+@@ -1286,7 +1293,7 @@ void WifiDisplaySink::onSetParameterRequest(
+ 	    CHECK_EQ(err, (status_t)OK);
+ #endif
+    }
+-   else   if (strstr(content, "wfd_trigger_method: TEARDOWN\r\n") != NULL) {
++   else if (strstr(content, "wfd_trigger_method: TEARDOWN\r\n") != NULL) {
+             ALOGI("receive source trigger teardown request, do nothing"); 
+             AString response = "RTSP/1.0 200 OK\r\n";
+             AppendCommonResponse(&response, cseq);
+@@ -1342,6 +1349,101 @@ void WifiDisplaySink::onSetParameterRequest(
+ 	    CHECK_EQ(err, (status_t)OK);
+ 		#endif
+ 	}
++
++   if (mUibcClientHandler != NULL &&
++        strstr(content, "wfd_uibc_capability") != NULL) {
++        AString value;
++        AString wfd_video_formats;
++        sp<Parameters> params =
++              Parameters::Parse(data->getContent(), strlen(data->getContent()));
++        ALOGD("[%s][%d]pre mUibcClientHandler\n",__FUNCTION__,__LINE__);
++        if (params != NULL &&
++            params->findParameter("wfd_uibc_capability", &value)) {
++            AString input_category_list;
++            AString generic_cap_list;
++            AString hidc_cap_list;
++            unsigned port;
++            int32_t port32;
++            int32_t sessionID;
++    
++            if (ParsedMessage::GetAttribute(
++                    value.c_str(), "input_category_list", &input_category_list)) {
++                mUibcClientHandler->setRemoteInputCatList(input_category_list);
++            }
++            if (ParsedMessage::GetAttribute(
++                    value.c_str(), "generic_cap_list", &generic_cap_list)) {
++                mUibcClientHandler->setRemoteGenericCapList(generic_cap_list);
++            }
++            if (ParsedMessage::GetAttribute(
++                    value.c_str(), "hidc_cap_list", &hidc_cap_list)) {
++                mUibcClientHandler->setRemoteHidcCapList(hidc_cap_list);
++            }
++            if (ParsedMessage::GetInt32Attribute(
++                    value.c_str(), "port", &port32)
++                || port32 < 1 || port32 > 65535) {
++                mUibcClientHandler->setPort(port32);
++            }
++
++            if ((mUibcClientHandler->getRemoteInputCatList() != 0x0) &&
++                (mUibcClientHandler->getRemoteGenericCapList() != 0x0) ) {
++                mUibcClientHandler->setUibcEnabled(true);
++                sp<AMessage> notify = new AMessage(kWhatRTSPNotify, this);
++                status_t err = mNetSession->createUIBCClient(
++                                    mRTSPHost.c_str(), port32, notify, &sessionID);
++                ALOGD("[%s][%d]pre mUibcClientHandler err[%zu]\n",__FUNCTION__,__LINE__,err);
++                CHECK_EQ(err, (status_t)OK);
++                mUibcClientHandler->setSessionID(sessionID);
++                mUibcClientHandler->init();
++            }
++        }
++
++        if (!params->findParameter("wfd_video_formats", &wfd_video_formats)) 
++        {
++            
++            ALOGE("Missing 'wfd_video_formats' field in M4 Request.");
++            
++        }
++
++        if (params != NULL &&
++            params->findParameter("wfd_video_formats", &value)) {
++            if (!(value == "none")) {
++                ALOGI("Parse String:%s", value.c_str());
++                unsigned native, dummy;
++                unsigned profile, level;
++                uint32_t resolutionEnabled1, resolutionEnabled2, resolutionEnabled3;
++                size_t index, width, height, framesPerSecond;
++                bool interlaced;
++                if (sscanf(
++                        value.c_str(),
++                        "%02x %02x %02x %02x %08X %08X %08X",
++                        &native,
++                        &dummy,
++                        &profile,
++                        &level,
++                        &resolutionEnabled1,
++                        &resolutionEnabled2,
++                        &resolutionEnabled3) != 7) {
++                    return;
++                }    
++                for (index = 0; index < 32; ++index) {
++                    if ( resolutionEnabled1 & (1ul << index)) {
++                        break;
++                    }
++                }
++                CHECK(VideoFormats::GetConfiguration(
++                          VideoFormats::RESOLUTION_CEA,
++                          index,
++                          &width,
++                          &height,
++                          &framesPerSecond,
++                          &interlaced));
++                if (mUibcClientHandler != NULL) {
++                    mUibcClientHandler->setWFDResolution(width, height, 1);
++                }
++    
++            }
++        }
++    }  
+ }
+ 
+ void WifiDisplaySink::sendErrorResponse(
+@@ -1376,6 +1478,53 @@ void WifiDisplaySink::finishStop()
+ #endif
+ }
+ 
++status_t WifiDisplaySink::sendUIBCGenericTouchEvent(const char * eventDesc) {
++    status_t err;
++    //ALOGD("sendUIBCGenericTouchEvent'%s'", eventDesc);
++        
++    if (mUibcClientHandler == NULL) return -1;
++    err = mUibcClientHandler->sendUibcMessage(mNetSession,
++            UibcMessage::GENERIC_TOUCH_DOWN,
++            eventDesc);
++    return err;
++}
++
++status_t WifiDisplaySink::sendUIBCGenericKeyEvent(const char * eventDesc) {
++    status_t err;
++    //ALOGD("sendUIBCGenericKeyEvent'%s'", eventDesc);
++
++    if (mUibcClientHandler == NULL) return -1;
++    err = mUibcClientHandler->sendUibcMessage(mNetSession,
++            UibcMessage::GENERIC_KEY_DOWN,
++            eventDesc);
++    return err;
++}
++
++
++int WifiDisplaySink::getWfdParam(int paramType) {
++    int paramValue = 0;
++
++    if (paramType == 8) {
++        /*
++         * bit 0: UIBC touch
++         * bit 1: UIBC mouse
++         * bit 2: UIBC keyboard
++         */
++         if (mUibcClientHandler != NULL &&
++             mUibcClientHandler->getUibcEnabled()) {
++             int uibcCap = mUibcClientHandler->getRemoteGenericCapList();
++             bool touchSupported = !!(uibcCap & GENERIC_SINGLETOUCH);
++             bool mouseSupported = !!(uibcCap & GENERIC_MOUSE);
++             bool keyboardSupported = !!(uibcCap & GENERIC_KEYBOARD);
++             paramValue |= touchSupported ? 0x01:0x00;
++             paramValue |= mouseSupported ? 0x02:0x00;
++             paramValue |= keyboardSupported ? 0x04:0x00;
++         }
++    }
++    return paramValue;
++}
++
++
+ char* WifiDisplaySink::getFirstLocalAddress(){
+ 	char local[255] = {0};
+ 	gethostname(local, sizeof(local));
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/ANetworkSession.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/ANetworkSession.h
+old mode 100755
+new mode 100644
+index fd3ebaaa28..0ccd34ea85
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/include/ANetworkSession.h
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/ANetworkSession.h
+@@ -77,7 +77,29 @@ struct ANetworkSession : public RefBase {
+             int32_t sessionID, const void *data, ssize_t size = -1,
+             bool timeValid = false, int64_t timeUs = -1ll);
+ 
++    status_t createTCPTextDataSession(
++            const struct in_addr &addr, unsigned port,
++            const sp<AMessage> &notify, int32_t *sessionID);
++    status_t createUIBCClient(
++            const char *host, unsigned port, const sp<AMessage> &notify,
++            int32_t *sessionID);
++
++    status_t createUIBCServer(
++            const struct in_addr &addr, unsigned port,
++            const sp<AMessage> &notify, int32_t *sessionID);
++
++    status_t sendDirectRequest(
++            int32_t sessionID, const void *data, ssize_t size);
++
++    status_t createTCPBinaryDataSessionActive(
++            unsigned localPort,
++            const char *remoteHost,
++            unsigned remotePort,
++            const sp<AMessage> &notify,
++            int32_t *sessionID);
+     status_t switchToWebSocketMode(int32_t sessionID);
++	status_t mtkRTPRecvPause(int32_t sessionID);
++	status_t mtkRTPRecvResume(int32_t sessionID);
+ 
+     enum NotificationReason {
+         kWhatError,
+@@ -88,6 +110,8 @@ struct ANetworkSession : public RefBase {
+         kWhatBinaryData,
+         kWhatWebSocketMessage,
+         kWhatNetworkStall,
++        kWhatTextData,
++        kWhatUibcData      
+     };
+ 
+ protected:
+@@ -112,6 +136,10 @@ private:
+         kModeCreateTCPDatagramSessionActive,
+         kModeCreateRTSPServer,
+         kModeCreateRTSPClient,
++        kModeCreateTCPTextDataSessionPassive,
++        kModeCreateUIBCServer,
++        kModeCreateUIBCClient,
++        kModeCreateTCPBinaryDataSessionActive,          // TCP binary data
+     };
+     status_t createClientOrServer(
+             Mode mode,
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/Parameters.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/Parameters.h
+new file mode 100644
+index 0000000000..a5e787e234
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/Parameters.h
+@@ -0,0 +1,41 @@
++/*
++ * Copyright 2012, The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <media/stagefright/foundation/ABase.h>
++#include <media/stagefright/foundation/AString.h>
++#include <utils/KeyedVector.h>
++#include <utils/RefBase.h>
++
++namespace android {
++
++struct Parameters : public RefBase {
++    static sp<Parameters> Parse(const char *data, size_t size);
++
++    bool findParameter(const char *name, AString *value) const;
++
++protected:
++    virtual ~Parameters();
++
++private:
++    KeyedVector<AString, AString> mDict;
++
++    Parameters();
++    status_t parse(const char *data, size_t size);
++
++    DISALLOW_EVIL_CONSTRUCTORS(Parameters);
++};
++
++}  // namespace android
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcClientHandler.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcClientHandler.h
+new file mode 100644
+index 0000000000..2b7c1657e7
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcClientHandler.h
+@@ -0,0 +1,47 @@
++
++#ifndef UIBC_CLIENT_HANDLER_H
++#define UIBC_CLIENT_HANDLER_H
++
++#include "UibcHandler.h"
++#include "UibcMessage.h"
++
++#include <media/stagefright/foundation/ABuffer.h>
++#include <media/stagefright/foundation/ADebug.h>
++#include <media/stagefright/foundation/ABase.h>
++#include <media/stagefright/foundation/hexdump.h>
++#include <media/stagefright/foundation/AMessage.h>
++#include <media/stagefright/foundation/AHandler.h>
++#include "include/ANetworkSession.h"
++
++
++#include <utils/RefBase.h>
++#include <utils/Thread.h>
++
++#include "WifiDisplayUibcType.h"
++#include <linux/input.h>
++
++namespace android {
++
++struct UibcClientHandler   : public RefBase, public UibcHandler  {
++    UibcClientHandler();
++    status_t init();
++    status_t destroy();
++
++    void setSessionID(int32_t SessionID);
++    int32_t getSessionID();
++
++    status_t sendUibcMessage(sp<ANetworkSession> netSession,
++                             UibcMessage::MessageType type,
++                             const char *eventDesc) ;
++
++protected:
++    virtual ~UibcClientHandler();
++
++private:
++    int32_t mSessionID;
++    int hid_kbd_fd;
++};
++
++}
++
++#endif
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcHandler.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcHandler.h
+new file mode 100644
+index 0000000000..135da45cf8
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcHandler.h
+@@ -0,0 +1,97 @@
++
++#ifndef UIBC_HANDLER_H
++#define UIBC_HANDLER_H
++
++#include <media/stagefright/foundation/ABuffer.h>
++#include <media/stagefright/foundation/ADebug.h>
++#include <media/stagefright/foundation/ABase.h>
++#include <utils/RefBase.h>
++#include <utils/Thread.h>
++#include <linux/input.h>
++
++
++#define UIBC_ENABLED 		true
++#define UIBC_DISABLED 		false
++#define UIBC_NONE 			0x00
++
++
++#define INPUT_CAT_GENERIC 			(0x01 << 0)
++#define INPUT_CAT_HIDC 				(0x01 << 1)
++
++
++#define GENERIC_KEYBOARD 			(0x01 << 0)
++#define GENERIC_MOUSE 				(0x01 << 1)
++#define GENERIC_SINGLETOUCH 		(0x01 << 2)
++#define GENERIC_MULTITOUCH			(0x01 << 3)
++#define GENERIC_JOYSTICK			(0x01 << 4)
++#define GENERIC_CAMERA				(0x01 << 5)
++#define GENERIC_GESTURE				(0x01 << 6)
++#define GENERIC_REMOTECONTROL		(0x01 << 7)
++
++
++#define SOURCE_SUPPORT_CAT INPUT_CAT_GENERIC
++#define SOURCE_SUPPORT_TYPE (GENERIC_KEYBOARD|GENERIC_MOUSE|GENERIC_SINGLETOUCH|GENERIC_MULTITOUCH)
++
++#define SINK_SUPPORT_CAT INPUT_CAT_GENERIC
++#define SINK_SUPPORT_TYPE (GENERIC_KEYBOARD|GENERIC_MOUSE|GENERIC_SINGLETOUCH|GENERIC_MULTITOUCH)
++
++namespace android {
++
++struct UibcHandler {
++    UibcHandler();
++    status_t init();
++    status_t destroy();
++
++    void setWFDResolution(int width, int heigh, int screenMode);
++    void run_consol_cmd(char *command);
++
++    void setUibcEnabled(bool enabled);
++    void setPort(int32_t port);
++
++    void setRemoteInputCatList(AString input_category_list);
++    void setRemoteGenericCapList(AString generic_cap_list);
++    void setRemoteHidcCapList(AString hidc_cap_list);
++
++    bool getUibcEnabled();
++    int getPort();
++
++    int getRemoteInputCatList();
++    int getRemoteGenericCapList();
++    // getRemoteHidcCapList should support getting path and device
++    //int getRemoteHidcCapList();
++
++
++    int getSupportedInputCatList(int localVal);
++    int getSupportedGenericCapList(int localVal);
++
++    char* getSupportedInputCatListStr(int localVal);
++    char* getSupportedGenericCapListStr(int localVal);
++
++
++
++protected:
++    virtual ~UibcHandler();
++    int m_wfdWidth;
++    int m_wfdHeight;
++    int m_localWidth;
++    int m_localHeight;
++    double m_widthRatio;
++    double m_heightRatio;
++
++    int mUibcEnabled;
++    int mRemote_InputCat;
++    int mRemote_InpType;
++
++    AString mInput_category_list;
++    AString mGeneric_cap_list;
++    AString mHidc_cap_list;
++    int32_t mPort;
++
++private:
++
++    DISALLOW_EVIL_CONSTRUCTORS(UibcHandler);
++};
++
++}
++
++#endif
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcMessage.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcMessage.h
+new file mode 100644
+index 0000000000..6f0955bc35
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcMessage.h
+@@ -0,0 +1,82 @@
++
++#ifndef UIBC_MESSAGE_H
++#define UIBC_MESSAGE_H
++
++#include <media/stagefright/foundation/ABuffer.h>
++#include <media/stagefright/foundation/ADebug.h>
++#include <media/stagefright/foundation/ABase.h>
++#include <utils/RefBase.h>
++#include <utils/Thread.h>
++
++#include "WifiDisplayUibcType.h"
++#include <linux/input.h>
++
++#define UIBC_SINK_CAPABILTY "wfd_uibc_capability: input_category_list=GENERIC;generic_cap_list=Keyboard, Mouse, SingleTouch, MultiTouch;hidc_cap_list=none;port=none;"
++
++namespace android {
++
++struct scanCodeBuild {
++    uint16_t scanCode;
++};
++
++typedef struct scanCodeBuild scanCodeBuild_t;
++
++
++struct UibcMessage : public RefBase {
++
++    enum MessageType {
++        GENERIC_TOUCH_DOWN = 0,
++        GENERIC_TOUCH_UP,
++        GENERIC_TOUCH_MOVE,
++        GENERIC_KEY_DOWN,
++        GENERIC_KEY_UP,
++        GENERIC_ZOOM,
++        GENERIC_VERTICAL_SCROLL,
++        GENERIC_HORIZONTAL_SCROLL,
++        GENERIC_ROTATE
++    };
++
++    UibcMessage(UibcMessage::MessageType type,
++                const char* inEventDesc,
++                double widthRatio,
++                double heightRatio);
++    virtual ~UibcMessage();
++
++    status_t init();
++    status_t destroy();
++
++    char* getPacketData();
++    int getPacketDataLen();
++
++    bool isDataValid();
++
++    static scanCodeBuild_t asciiToScancodeBuild(UINT16 uibcCode);
++    static short scancodeToAcsii(UINT8 keyCode);
++    static int asciiToKeycode(char asciiCode);
++    static char keycodeToAcsii(int keyCode);
++    static void getScreenResolution(int* x, int* y);
++    static char** str_split(char* a_str, const char a_delim);
++
++protected:
++
++
++private:
++
++    int32_t getUIBCGenericTouchPacket(const char *inEventDesc,
++                                      char** outData,
++                                      double widthRatio,
++                                      double heightRatio);
++    int32_t getUIBCGenericKeyPacket(const char *inEventDesc, char** outData);
++    int32_t getUIBCGenericZoomPacket(const char *inEventDesc, char** outData);
++    int32_t getUIBCGenericScalePacket(const char *inEventDesc, char** outData);
++    int32_t getUIBCGenericRotatePacket(const char *inEventDesc, char** outData);
++
++    char* m_PacketData;
++    int m_PacketDataLen;
++    bool m_DataValid;
++
++};
++
++}
++
++#endif
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcServerHandler.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcServerHandler.h
+new file mode 100644
+index 0000000000..c2b08afe7f
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/UibcServerHandler.h
+@@ -0,0 +1,82 @@
++
++#ifndef UIBC_SERVER_HANDLER_H
++#define UIBC_SERVER_HANDLER_H
++
++#include "UibcHandler.h"
++
++#include <media/stagefright/foundation/ABuffer.h>
++#include <media/stagefright/foundation/ADebug.h>
++#include <media/stagefright/foundation/ABase.h>
++#include <utils/RefBase.h>
++#include <utils/Thread.h>
++
++#include "WifiDisplayUibcType.h"
++#include <linux/input.h>
++
++#include <media/IRemoteDisplayClient.h>
++
++#define UIBC_KBD_DEV_PATH	"/dev/uibc"
++
++namespace android {
++
++enum display_mode {
++    DISPLAY_MODE_PORTRAIT = 0,
++    DISPLAY_MODE_LANDSCAPE = 1,
++};
++
++struct IRemoteDisplayClient;
++
++struct UibcServerHandler : public RefBase, public UibcHandler {
++    UibcServerHandler(sp<IRemoteDisplayClient> remoteClient);
++
++    status_t init();
++    status_t destroy();
++    status_t handleUIBCMessage(const sp<ABuffer> &buffer);
++
++    status_t simulateKeyEvent();
++    status_t simulateMouseEvent();
++
++protected:
++    virtual ~UibcServerHandler();
++    void initIoPeripheral();
++
++private:
++
++    int mUibc_kbd_fd;
++    int m_XCurCoord;
++    int m_YCurCoord;
++
++    int m_XOffset;
++    int m_YOffset;
++    bool m_XRevert;
++    bool m_YRevert;
++    bool m_XYSwitch;
++    uint8_t m_Orientation;
++
++    bool mShiftPressed;
++    bool m_touchDown;
++    bool m_mouseDown;
++    int m_deltaX;
++    int m_deltaY;
++
++    bool m_touchSupported;
++    bool m_mouseSupported;
++    bool m_mouseCursorSupported;
++
++    sp<IRemoteDisplayClient> mRemoteClient;
++
++    void updateScreenMode();
++    bool transTouchToSourcePosition(short* x, short* y);
++
++    status_t handleGenericInput(const sp<ABuffer> &buffer);
++    status_t handleHIDCInput(const sp<ABuffer> &buffer);
++
++    status_t sendKeyEvent(UINT16 code, int isPress);
++    status_t sendMultipleTouchEvent(WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH *pBody);
++
++    DISALLOW_EVIL_CONSTRUCTORS(UibcServerHandler);
++};
++
++}
++
++#endif
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/VideoFormats.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/VideoFormats.h
+new file mode 100644
+index 0000000000..fd38fd192e
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/VideoFormats.h
+@@ -0,0 +1,125 @@
++/*
++ * Copyright 2013, The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VIDEO_FORMATS_H_
++
++#define VIDEO_FORMATS_H_
++
++#include <media/stagefright/foundation/ABase.h>
++
++#include <stdint.h>
++
++namespace android {
++
++struct AString;
++
++// This class encapsulates that video resolution capabilities of a wfd source
++// or sink as outlined in the wfd specs. Currently three sets of resolutions
++// are specified, each of which supports up to 32 resolutions.
++// In addition to its capabilities each sink/source also publishes its
++// "native" resolution, presumably one that is preferred among all others
++// because it wouldn't require any scaling and directly corresponds to the
++// display capabilities/pixels.
++struct VideoFormats {
++    VideoFormats();
++
++    struct config_t {
++        size_t width, height, framesPerSecond;
++        bool interlaced;
++        unsigned char profile, level;
++    };
++
++    enum ProfileType {
++        PROFILE_CBP = 0,
++        PROFILE_CHP,
++        kNumProfileTypes,
++    };
++
++    enum LevelType {
++        LEVEL_31 = 0,
++        LEVEL_32,
++        LEVEL_40,
++        LEVEL_41,
++        LEVEL_42,
++        kNumLevelTypes,
++    };
++
++    enum ResolutionType {
++        RESOLUTION_CEA,
++        RESOLUTION_VESA,
++        RESOLUTION_HH,
++        kNumResolutionTypes,
++    };
++
++    void setNativeResolution(ResolutionType type, size_t index);
++    void getNativeResolution(ResolutionType *type, size_t *index) const;
++
++    void disableAll();
++    void enableAll();
++    void enableResolutionUpto(
++            ResolutionType type, size_t index,
++            ProfileType profile, LevelType level);
++
++    void setResolutionEnabled(
++            ResolutionType type, size_t index, bool enabled = true);
++
++    bool isResolutionEnabled(ResolutionType type, size_t index) const;
++
++    void setProfileLevel(
++            ResolutionType type, size_t index,
++            ProfileType profile, LevelType level);
++
++    void getProfileLevel(
++            ResolutionType type, size_t index,
++            ProfileType *profile, LevelType *level) const;
++
++    static bool GetConfiguration(
++            ResolutionType type, size_t index,
++            size_t *width, size_t *height, size_t *framesPerSecond,
++            bool *interlaced);
++
++    static bool GetProfileLevel(
++            ProfileType profile, LevelType level,
++            unsigned *profileIdc, unsigned *levelIdc,
++            unsigned *constraintSet);
++
++    bool parseFormatSpec(const char *spec);
++    AString getFormatSpec(bool forM4Message = false) const;
++
++    static bool PickBestFormat(
++            const VideoFormats &sinkSupported,
++            const VideoFormats &sourceSupported,
++            ResolutionType *chosenType,
++            size_t *chosenIndex,
++            ProfileType *chosenProfile,
++            LevelType *chosenLevel);
++
++private:
++    bool parseH264Codec(const char *spec);
++    ResolutionType mNativeType;
++    size_t mNativeIndex;
++
++    uint32_t mResolutionEnabled[kNumResolutionTypes];
++    static const config_t mResolutionTable[kNumResolutionTypes][32];
++    config_t mConfigs[kNumResolutionTypes][32];
++
++    DISALLOW_EVIL_CONSTRUCTORS(VideoFormats);
++};
++
++}  // namespace android
++
++#endif  // VIDEO_FORMATS_H_
++
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplaySink.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplaySink.h
+index b821f0f63a..d8517c4663 100755
+--- a/vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplaySink.h
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplaySink.h
+@@ -22,6 +22,7 @@
+ #include <gui/Surface.h>
+ #include <media/stagefright/foundation/AHandler.h>
+ #include "ANetworkSession.h"
++#include "include/UibcClientHandler.h"
+ 
+ namespace android {
+ #ifdef WFD_HDCP_SUPPORT
+@@ -39,7 +40,9 @@ struct WifiDisplaySink : public AHandler {
+ 
+     void start(const char *sourceHost, int32_t sourcePort);
+     void start(const char *uri);
+-
++    status_t sendUIBCGenericTouchEvent(const char *eventDesc);
++    status_t sendUIBCGenericKeyEvent(const char *eventDesc);
++    int      getWfdParam(int paramType);
+ protected:
+     virtual ~WifiDisplaySink();
+     virtual void onMessageReceived(const sp<AMessage> &msg);
+@@ -106,12 +109,16 @@ private:
+     AString mPlaybackSessionID;
+     int32_t mPlaybackSessionTimeoutSecs;
+ 
++    sp<UibcClientHandler> mUibcClientHandler;
++    AString mUibcCapibilities;
++
+ 	AString* mUrl;
+ 	int		end_flag;
+     pthread_t mThread;
+     void* ThreadWrapper(void *);
+ 	static void* rec_data(void* me);
+ 	void sendIDR(int32_t sessionID, const char *uri);
++
+     status_t sendM2(int32_t sessionID);
+     status_t sendDescribe(int32_t sessionID, const char *uri);
+     status_t sendSetup(int32_t sessionID, const char *uri);
+diff --git a/vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplayUibcType.h b/vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplayUibcType.h
+new file mode 100644
+index 0000000000..b17ff79627
+--- /dev/null
++++ b/vendor/rockchip/common/apps/WifiDisplay/jni/include/WifiDisplayUibcType.h
+@@ -0,0 +1,148 @@
++#ifndef WIFI_DISPLAY_UIBC_TYPE_H
++#define WIFI_DISPLAY_UIBC_TYPE_H
++
++#define UINT8 unsigned char
++#define UINT16 unsigned short
++
++#define MAX_NUM_COORDINATE  5
++#define UIBC_MAX_FULL_REQUEST_SIZE    1024
++#define UIBC_HEADER_SIZE              4
++#define UIBC_TIMESTAMP_SIZE           2
++
++
++#define UIBC_VERSION             0x00
++
++#define UIBC_TIMESTAMP_MASK      0x08
++#define UIBC_INPUT_CATEGORY_MASK 0xF0
++
++
++#define MAX_TCP_CONNECTIONS 1
++
++#define ERROR    -1
++#define SUCCESS   0
++
++
++typedef enum
++{
++    WFD_UIBC_INPUT_CATEGORY_GENERIC = 0,
++    WFD_UIBC_INPUT_CATEGORY_HIDC,
++    WFD_UIBC_INPUT_CATEGORY_UNKNOWN = 0xFF
++} UIBCInputCategoryCode;
++
++// Table 4-5: Generic Input Type ID for User Inputs of the Generic Category
++typedef enum
++{
++    WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_DOWN = 0,
++    WFD_UIBC_GENERIC_IE_ID_LMOUSE_TOUCH_UP,
++    WFD_UIBC_GENERIC_IE_ID_MOUSE_TOUCH_MOVE,
++    WFD_UIBC_GENERIC_IE_ID_KEY_DOWN,
++    WFD_UIBC_GENERIC_IE_ID_KEY_UP,
++    WFD_UIBC_GENERIC_IE_ID_ZOOM,
++    WFD_UIBC_GENERIC_IE_ID_VSCROLL,
++    WFD_UIBC_GENERIC_IE_ID_HSCROLL,
++    WFD_UIBC_GENERIC_IE_ID_ROTATE
++} UIBCGenericInputId;
++
++// Table 4-16: HID Input Path
++typedef enum
++{
++    WFD_UIBC_HIDC_IE_ID_INFRARED = 0,
++    WFD_UIBC_HIDC_IE_ID_USB,
++    WFD_UIBC_HIDC_IE_ID_BLUETOOTH,
++    WFD_UIBC_HIDC_IE_ID_ZIGBEE,
++    WFD_UIBC_HIDC_IE_ID_WIFI,
++    WFD_UIBC_HIDC_IE_ID_VENDOR = 0xFF
++} UIBCHidInputPath;
++
++// Table 4-17: HID type
++typedef enum
++{
++    WFD_UIBC_HIDCTYPE_IE_ID_KEYBOARD = 0,
++    WFD_UIBC_HIDCTYPE_IE_ID_MOUSE,
++    WFD_UIBC_HIDCTYPE_IE_ID_SINGLETOUCH,
++    WFD_UIBC_HIDCTYPE_IE_ID_MULTITOUCH,
++    WFD_UIBC_HIDCTYPE_IE_ID_JOYSTICK,
++    WFD_UIBC_HIDCTYPE_IE_ID_CAMERA,
++    WFD_UIBC_HIDCTYPE_IE_ID_GESTURE,
++    WFD_UIBC_HIDCTYPE_IE_ID_REMOTECONTROLLER,
++    WFD_UIBC_HIDCTYPE_IE_ID_VENDOR = 0xFF
++} UIBCHidType;
++
++
++// 4.11.3.1 Generic Input Body Format
++// Table 4.4: Generic Input Message Format
++typedef struct _WFD_UIBC_FORMAT_HDR {
++    UINT8      byte1;    // version + T + half of Reserved
++    UINT8      byte2;    // half of Reserved + InputCategory
++    UINT16     length;
++}__attribute__((__packed__)) WFD_UIBC_FORMAT_HDR;
++
++typedef struct _WFD_UIBC_GENERIC_BODY_FORMAT_HDR {
++    UINT8    ieID;
++    UINT16    length;
++}__attribute__((__packed__)) WFD_UIBC_GENERIC_BODY_FORMAT_HDR;
++
++// Describe Field for Generic Input Message for Key Down or Key Up
++typedef struct _WFD_UIBC_GENERIC_BODY_KEY {
++    UINT8      ieID;
++    UINT16     length;  
++    UINT8      reserved;    
++    UINT16     code1;
++    UINT16     code2;
++}__attribute__((__packed__)) WFD_UIBC_GENERIC_BODY_KEY;
++
++
++typedef struct _WFD_UIBC_GENERIC_BODY_COORDINATE {
++    UINT8      pointerID;
++    UINT16     x;
++    UINT16     y;
++}__attribute__((__packed__)) WFD_UIBC_GENERIC_BODY_COORDINATE;
++
++// Describe Field of Generic InputMessage for Left Mouse Down(Up) /Touch Down(Up)
++typedef struct _WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH {
++    UINT8      ieID;
++    UINT16     length;
++    UINT8      numPointers;
++    WFD_UIBC_GENERIC_BODY_COORDINATE coordinates[MAX_NUM_COORDINATE];
++}__attribute__((__packed__)) WFD_UIBC_GENERIC_BODY_MOUSE_TOUCH;
++
++// Describe Field of Generic InputMessage for Zoom
++typedef struct _WFD_UIBC_GENERIC_BODY_ZOOM {
++    UINT8      ieID;
++    UINT16     length;
++    UINT16     x;
++    UINT16     y;
++    UINT8      intTimes;
++    UINT8      fractTimes;
++}__attribute__((__packed__)) WFD_UIBC_GENERIC_BODY_ZOOM;
++
++// Describe Field of Generic InputMessage for Vertical/Horizontal scroll
++typedef struct _WFD_UIBC_GENERIC_BODY_SCROLL {
++    UINT8      ieID;
++    UINT16     length;
++    UINT16     amount;
++}__attribute__((__packed__)) WFD_UIBC_GENERIC_BODY_SCROLL;
++
++// Describe Field of Generic InputMessage for rotate
++typedef struct _WFD_UIBC_GENERIC_BODY_ROTATE {
++    UINT8      ieID;
++    UINT16     length;
++    UINT8      intAmount;
++    UINT8      fractAmount;
++}__attribute__((__packed__)) WFD_UIBC_GENERIC_BODY_ROTATE;
++
++typedef struct ASCII_KEYCODE_MAPPING_STRUCT {
++    UINT16     asciiCode;
++    UINT8      keyCode;
++}__attribute__((__packed__)) ASCII_KEYCODE_MAPPING_STRUCT;
++
++typedef struct _WFD_UIBC_HIDC_BODY_FORMAT_HDR {
++    UINT8       inputPath;
++    UINT8       hidType;
++    UINT8       usage;
++    UINT16      length;
++}__attribute__((__packed__)) WFD_UIBC_HIDC_BODY_FORMAT_HDR;
++
++
++
++#endif
+-- 
+2.25.1
+
