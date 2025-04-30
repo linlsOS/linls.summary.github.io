@@ -6,6 +6,7 @@
 
 NO.  |文件名称|摘要
 :---:|:--|:--
+0004 | [cameralist](docs/0004_cameralist.md) | 获取camera 列表
 0003 | [camera_流程分析](docs/0003_camera_流程分析.md) | camera 流程分析
 0002 | [open_camera](docs/0002_open_camera.md) | open camera 流程
 0001 | [camera_structure](docs/0001_camera_structure.md) | camera 架构

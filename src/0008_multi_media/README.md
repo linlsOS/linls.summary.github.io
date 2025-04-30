@@ -6,6 +6,7 @@
 
 NO.  |文件名称|摘要
 :---:|:--|:--
+0023 | [Technical_route](docs/0023_Technical_route.md) | 多媒体进阶路线
 0022 | [uibc](docs/0022_uibc.md) | UIBC
 0021 | [ffmpeg_avfilter](docs/0021_ffmpeg_avfilter.md) | ffmpeg 滤镜
 0020 | [mov_parser](docs/0020_mov_parser.md) | MOV 解析

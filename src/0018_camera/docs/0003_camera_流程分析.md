@@ -8,6 +8,7 @@ camera 流程分析
 * [camera启动之---HwServiceManager进程启动过程](https://blog.csdn.net/weixin_43503508/article/details/107702905)
 * [camerahal之---hal3主要接口实现(1)](https://blog.csdn.net/weixin_43503508/article/details/107827025)
 * [camerahal之---rkisp-hal3内部实现(2)](https://blog.csdn.net/weixin_43503508/article/details/107851220)
+* [Android Camera HAL3简介](https://deepinout.com/android-camera/android-camera-hal3-intro.html)
 # camera 
 
 ```

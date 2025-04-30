@@ -4,10 +4,11 @@ sensor bringup
 
 # menu
 
-* [参考文档](#参考文档)
-* [sensor bring up步骤](#sensor-bring-up步骤)
+* [1 参考文档](#1-参考文档)
+* [2 器件 bring up步骤](#2-器件-bring-up步骤)
+* [3 MTK sensor 架构](#3-MTK-sensor-架构)
 
-# 参考文档
+# 1 参考文档
 
 * [Sensor bringup 中的一些问题总结](https://zhuanlan.zhihu.com/p/537527289)
 * [联发科 （MTK） sensor bring up](https://blog.csdn.net/jxx1823862645/article/details/123110787)
@@ -19,7 +20,7 @@ sensor bringup
 * [MTK 平台sensor arch 介绍-hal](https://blog.csdn.net/jxx1823862645/article/details/125059469)
 
 
-# 器件 bring up步骤
+# 2 器件 bring up步骤
 
 * 学会看电路图、原理图  
   这是地层驱动基础必学的技能，需要知道同这个器件挂在哪儿、哪条I2C总线、供电引脚是否供电，另外在porting驱动后如果器件挂载不成功也需要确认是软件问题还是硬件问题
@@ -41,7 +42,7 @@ sensor bringup
   * 确认I2C 通信是否正常，这里需要硬件协助确认I2C的clk跟data数据是否同规格书匹配
   * 请硬件协助确认器件焊接是否正常
 
-# MTK sensor 架构
+# 3 MTK sensor 架构
 
   MTK Sensor 分为 AP 和 SCP 两大部分，AP (CA5x ，CA7x 系列 主芯片)， SCP（CM4）协处理器。负责处理 Sensor 数据。实际使用中，也可以关闭 SCP 只走 AP 这路实现 sensor 功能。
   器件是挂载在AP侧还是在SCP侧，需要从原理图上进行确认。挂在AP侧与SCP 侧的驱动是有差异的，需要确认了才能同FAE 要相对应的驱动。
